@@ -1,8 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.core.validators import RegexValidator
 
 class MyAccountManager(BaseUserManager):
-    def create_user(self, first_name, last_name, username, email, password=None):
+    def create_user(self, first_name, last_name, username, email, password=None, phone_number=None):
         if not email:
             raise ValueError("User must have an email address")
         if not username:
@@ -13,6 +14,7 @@ class MyAccountManager(BaseUserManager):
             username = username,
             first_name = first_name,
             last_name = last_name,
+            phone_number = phone_number,
         )
 
         user.set_password(password)
@@ -40,7 +42,7 @@ class Account(AbstractBaseUser):
     last_name = models.CharField(max_length=50)
     username = models.CharField(max_length=50, unique=True)
     email = models.EmailField(max_length=100, unique=True)
-    phone_number = models.CharField(max_length=10)
+    phone_number = models.CharField(max_length=10, validators=[RegexValidator(regex=r'^\d{10}$', message='Phone number must be exactly 10 digits', code='invalid_phone')])
 
     #required
     date_joined = models.DateTimeField(auto_now_add=True)

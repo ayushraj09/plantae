@@ -24,9 +24,7 @@ def register(request):
             phone_number=form.cleaned_data['phone_number']
             password=form.cleaned_data['password']
             username = email.split("@")[0]
-            user = Account.objects.create_user(first_name=first_name, last_name=last_name, email=email, username=username, password=password)
-            user.phone_number = phone_number
-            user.save()
+            user = Account.objects.create_user(first_name=first_name, last_name=last_name, email=email, username=username, password=password, phone_number=phone_number)
 
             # USER Activation
             current_site = get_current_site(request)
@@ -69,7 +67,7 @@ def login(request):
                     #getting product variation by cart id
                     product_variation = []
                     for item in cart_item:
-                        variation = item.variations.all()
+                        variation = item.variation.all()
                         product_variation.append(list(variation))
 
                     #get cart items from user to access his product variation
@@ -77,7 +75,7 @@ def login(request):
                     ex_var_list=[]
                     id = []
                     for item in cart_item:
-                        existing_variation = item.variations.all()
+                        existing_variation = item.variation.all()
                         ex_var_list.append(list(existing_variation))
                         id.append(item.id)
 

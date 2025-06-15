@@ -6,6 +6,8 @@ from django.urls import reverse
 class Product(models.Model):
     product_name = models.CharField(max_length=50, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
+    allowed_variations = models.CharField(max_length=100, blank=True,
+        help_text="Comma separated list of allowed variation types (e.g. color,size)")
     description = models.TextField(max_length=500, blank=False)
     price = models.DecimalField(max_digits=7, decimal_places=2)
     product_images = models.ImageField(upload_to='media/product')
@@ -21,6 +23,13 @@ class Product(models.Model):
     def __str__(self):
         return self.product_name
     
+    def get_allowed_variations(self):
+        # Returns a queryset of Variation objects for this product that match allowed types
+        if self.allowed_variations:
+            allowed = [x.strip() for x in self.allowed_variations.split(",")]
+            return Variation.objects.filter(product=self, variation_category__in=allowed, is_active=True)
+        return Variation.objects.none()
+    
 class VariationManager(models.Manager):
     def colors(self):
         return super(VariationManager, self).filter(variation_category='color', is_active=True)
@@ -33,6 +42,7 @@ class VariationManager(models.Manager):
 variation_category_choice = (
     ('color', 'color'),
     ('size', 'size'),
+    ('pack', 'pack')
 )
 
 class Variation(models.Model):

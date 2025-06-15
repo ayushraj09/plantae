@@ -1420,3 +1420,21 @@ a[class*=card]:hover .title {
 }
 
 /*# sourceMappingURL=ui.css.map */
+
+.custom-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 12px;
+}
+.custom-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.1);
+}
+.custom-overview .card-header { background-color: #2e8b57; }
+.custom-care .card-header { background-color: #007bff; }
+.custom-soil .card-header { background-color: #795548; }
+.custom-pest_resistance .card-header { background-color: #dc3545; }
+.custom-special_features .card-header { background-color: #6f42c1; }
+.custom-best_for .card-header { background-color: #20c997; }
+.custom-maintenance_level .card-header { background-color: #fd7e14; }
+.custom-eco_benefits .card-header { background-color: #28a745; }
+.custom-price .card-header { background-color: #343a40; }

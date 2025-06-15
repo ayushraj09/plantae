@@ -36,4 +36,11 @@ class RegistrationForm(forms.ModelForm):
             raise forms.ValidationError(
                 "Password does not match!"
             )
+
+    def clean_phone(self):
+        phone = self.cleaned_data['phone']
+        if len(phone) != 10:
+            raise forms.ValidationError("Phone number must be exactly 10 digits")
+        return phone
+
         
