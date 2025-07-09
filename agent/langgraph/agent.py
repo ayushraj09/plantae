@@ -261,15 +261,28 @@ def identify_plant_from_image(image_file):
 # LLM-based classifier for specific plant care/identification queries
 
 def is_specific_plant_query_llm(user_prompt: str, llm) -> bool:
-    """Use LLM to classify if the query is about specific plant care/identification or general/generic."""
+    """Use LLM to classify if the query is about specific plant diagnosis/care (needs image/symptom advice)
+    or general/generic advice (common plant care tips)."""
     system_prompt = (
         "You are a classifier for a plant assistant. "
-        "Given a user request, respond with ONLY 'specific' if the query is about a specific plant, plant care, or plant identification, "
-        "or 'general' if it is a general/generic plant question (like 'suggest indoor plants', 'what are some easy plants', etc).\n"
-        "User request: " + user_prompt
+        "Classify user queries as either:\n"
+        "'specific' → if the question is about a particular plant's issue or needs personalized advice "
+        "(e.g., it's not blooming, has yellow leaves, or asking for a diagnosis or treatment for a plant they have).\n"
+        "'general' → if it's asking for broad/general care tips or recommendations "
+        "(like 'how to care for rose plants' or 'tips for growing maize plant').\n\n"
+        "Respond with ONLY: specific or general.\n"
+        "User query: " + user_prompt
     )
     response = llm.invoke([SystemMessage(content=system_prompt)])
     return response.content.strip().lower() == "specific"
+
+def is_capabilities_query(message: str) -> bool:
+    triggers = [
+        "what can you do", "how can you help", "your abilities", "your features", "in what ways you can help"
+        "what are your features", "what services do you provide", "what are you capable of", "how you can assist", 
+    ]
+    msg = message.lower()
+    return any(trigger in msg for trigger in triggers)
 
 def supervisor_node(state: SupervisorState) -> SupervisorState:
     """Supervisor node that decides which agent(s) to route to"""
@@ -357,7 +370,21 @@ def run_supervisor_agent(user_id: int, message: str, thread_id: str = None, imag
     """Run the supervisor agent with optional image handling and plant identification"""
     if thread_id is None:
         thread_id = f"user_{user_id}"
+        
+    if is_capabilities_query(message):
+        return (
+            "Hi! I’m your PLANTAE assistant. Here’s how I can help:<br>"
 
+            "<b>• Plant Care</b> – Tips on watering, sunlight, soil, nutrients, pests & diseases.<br>"
+            "<b>• Shop Help</b> – Find the best plants, seeds, planters & gardening products.<br>"
+            "<b>• Cart Support</b> – Add, view, or remove items from your cart.<br>"
+            "<b>• Order Info</b> – Track orders, view details, or get checkout help.<br>"
+            "<b>• Know Your Plant</b> – Upload an image to identify your plant and learn how to care for it.<br>"
+            "<b>• Voice Chat</b> – Ask me anything using voice or text.<br><br>"
+
+            "Just ask your question—I'm here to help!"
+        )
+    
     image_b64 = ""
     # Use LLM-based classification for image flag logic
     is_care_query = is_specific_plant_query_llm(message, supervisor_llm)

@@ -1,5 +1,3 @@
-/* hide radio button */
-
 .rate > input{
     display: none;
 }
@@ -168,7 +166,7 @@ ul.thumb li img{
 
 .banner-img {
     width: 100%;
-    height: 100px; 
+    height: 300px; 
     object-fit: cover;
     border-radius: 0.5rem;
 }

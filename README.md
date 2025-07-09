@@ -34,12 +34,12 @@
 
 - **User Authentication:** Register, login, logout, email verification, password reset, profile management.
 - **Product Catalog:** Browse, search, and filter products by category, price, and keyword.
-- **Product Details:** Detailed product pages with images, plant care info, reviews, and variations (color, size, pack).
+- **Product Details:** Detailed product pages with images, plant care info, reviews, and variations.
 - **Cart & Checkout:** Add/remove products, manage variations, view cart, checkout with tax calculation.
 - **Order Management:** Place orders, view order history, order details, payment via Razorpay, order confirmation emails.
 - **Reviews:** Submit and update product reviews.
 - **Admin Panel:** Manage users, products, categories, orders, and chat limits.
-- **Responsive UI:** Mobile-friendly, modern design with Bootstrap and custom CSS.
+- **UI:** Modern design with Bootstrap and custom CSS.
 - **AI Assistant:** Chatbot for plant care, product help, and order support.
 
 ---
@@ -55,12 +55,12 @@
 - **Voice Features:**
   - Text-to-Speech (TTS) and Speech-to-Text (STT) using ElevenLabs
 - **Agent Modules:**
+  - **Supervisor Agent:** Routes queries to the correct sub-agent(s) using LLM-based classification
   - **Cart Agent:** Add/view/remove items in cart
-  - **Order Agent:** Fetch order details, order history, checkout links
+  - **Order Agent:** Fetch order details, order history, redirect to checkout and my orders links
   - **Research Agent:** Plant care, diseases, watering, sunlight, etc.
   - **Recommendation Agent:** Suggests products based on user needs and catalog
-  - **Supervisor Agent:** Routes queries to the correct sub-agent(s) using LLM-based classification
-
+  
 ---
 
 ## Tech Stack
@@ -140,11 +140,13 @@ plantae/
 
 > _Add screenshots/gifs below to showcase the UI and features._
 
-- ![Home Page](docs/screenshots/homepage.png)
-- ![Product Page](docs/screenshots/product.png)
-- ![Cart/Checkout](docs/screenshots/cart.png)
+- ![Home Page](docs/screenshots/home.png)
+- ![Store Page](docs/screenshots/store.png)
+- ![Product Page](docs/screenshots/product_detail.png)
+- ![Cart](docs/screenshots/cart.png)
 - ![Agent Chat Widget](docs/screenshots/agent_chat.png)
 - ![Admin Panel](docs/screenshots/admin.png)
+- ![Order Invoice and Order Retrieval](docs/screenshots/payment_success.png)
 
 ---
 
