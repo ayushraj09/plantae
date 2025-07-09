@@ -163,7 +163,9 @@ plantae/
 
 
 ![Order Invoice and Order Retrieval](docs/screenshots/payment_success.png)
-*Order Invoice and Order Retrieval*
+*Order Invoice*
+
+
 ---
 
 ## License
