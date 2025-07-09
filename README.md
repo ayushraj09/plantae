@@ -138,14 +138,18 @@ plantae/
 
 ## Screenshots
 
-> _Add screenshots/gifs below to showcase the UI and features._
-
 - ![Home Page](docs/screenshots/home.png)
+*Home Page*
 - ![Store Page](docs/screenshots/store.png)
+*Store Page*
 - ![Product Page](docs/screenshots/product_detail.png)
+*Product Detail Page*
 - ![Cart](docs/screenshots/cart.png)
+*Cart Page*
 - ![Agent Chat Widget](docs/screenshots/agent_chat.png)
+*Chat Widget*
 - ![Admin Panel](docs/screenshots/admin.png)
+*Admin Page*
 - ![Order Invoice and Order Retrieval](docs/screenshots/payment_success.png)
 
 ---
