@@ -1,0 +1,800 @@
+{% load static %}
+<!-- Floating Chat Widget -->
+<style>
+#plantae-chat-widget {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  z-index: 9999;
+  font-family: inherit;
+}
+#plantae-chat-toggle:hover {
+  background: #157347;
+}
+#plantae-chat-box {
+  display: none;
+  flex-direction: column;
+  width: 600px;
+  max-width: 98vw;
+  height: 700px;
+  max-height: 92vh;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+#plantae-chat-box.open {
+  display: flex;
+}
+#plantae-chat-header {
+  background: #198754;
+  color: #fff;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#plantae-chat-header h5 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+#plantae-chat-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+#plantae-chat-body {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  background: #f8f9fa;
+}
+#plantae-chat-footer {
+  background: #f8f9fa;
+  padding: 10px 12px;
+  border-top: 1px solid #e9ecef;
+}
+#plantae-chat-footer .input-group {
+  display: flex;
+  gap: 6px;
+}
+#plantae-chat-footer textarea {
+  flex: 1;
+  border-radius: 16px;
+  border: 1.5px solid #d1e7dd;
+  box-shadow: 0 1px 4px rgba(25,135,84,0.07);
+  padding: 16px 18px;
+  font-size: 1rem;
+  outline: none;
+  transition: border 0.2s, box-shadow 0.2s;
+  min-height: 30px;
+  max-height: 60px;
+  resize: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+#plantae-chat-footer textarea:focus {
+  border: 1.5px solid #198754;
+  box-shadow: 0 2px 8px rgba(25,135,84,0.13);
+}
+#plantae-chat-footer input[type="file"] {
+  display: none;
+}
+#plantae-clear-btn {
+  background: none;
+  border: none;
+  color: #dc3545;
+  font-size: 1.1rem;
+  margin-left: 8px;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  #plantae-chat-box {
+    width: 98vw;
+    height: 80vh;
+    right: 1vw;
+    bottom: 1vw;
+  }
+}
+
+#imageBtn, #sendBtn, #voiceBtn {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  width: auto;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: none;
+}
+#imageBtn:hover, #sendBtn:hover, #voiceBtn:hover {
+  background: transparent !important;
+}
+#sendBtn img, #voiceBtn img {
+  width: 26px;
+  height: 26px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  display: block;
+}
+#imageBtn img {
+  width: 48px;
+  height: 48px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  display: block;
+}
+#image-preview {
+  position: relative;
+  display: inline-block;
+}
+#image-preview img {
+  max-width: 80px;
+  max-height: 80px;
+  border-radius: 8px;
+  margin-right: 8px;
+  display: block;
+}
+#remove-image-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(255,255,255,0.85);
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #dc3545;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+  z-index: 2;
+  padding: 0;
+}
+#remove-image-btn:hover {
+  background: #ffeaea;
+}
+
+#imageBtn:focus, #sendBtn:focus, #voiceBtn:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+#plantae-chat-toggle {
+  background: rgb(255, 255, 255);
+  border: none;
+  border-radius: 50%;
+  width: 72px;
+  height: 72px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: box-shadow 0.2s, background 0.2s;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10002;
+}
+#plantae-chat-toggle img {
+  width: 42px;
+  height: 42px;
+  display: block;
+  margin: auto;
+  /* border-radius: 50%; */
+  /* box-shadow: 0 1px 4px rgba(25,135,84,0.13); */
+}
+#plantae-chat-toggle:hover {
+  /* box-shadow: 0 4px 24px rgba(25,135,84,0.25); */
+  background: #ffffff;
+}
+
+
+/* Tooltip styling */
+.help-tooltip {
+  position: absolute;
+  top: -48px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #198754;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 16px;
+  font-size: 1rem;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(25,135,84,0.18);
+  opacity: 1;
+  pointer-events: none; /* Prevent tooltip from blocking button clicks */
+  transition: opacity 0.2s;
+  z-index: 10002;
+}
+.help-tooltip-arrow {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #198754;
+}
+#plantae-chat-toggle:hover + .help-tooltip,
+#plantae-help-tooltip {
+  opacity: 1;
+}
+#plantae-chat-toggle:focus + .help-tooltip {
+  opacity: 1;
+}
+#plantae-chat-toggle.open + .help-tooltip {
+  opacity: 0;
+}
+
+</style>
+<div id="plantae-chat-widget">
+  <div style="position: relative; width: 80px; height: 80px;">
+    <button id="plantae-chat-toggle" aria-label="Open chat" style="z-index:10002;">
+      <img id="plantae-chat-toggle-icon" src="{% static 'agent/img/toggle_idle.png' %}" alt="Open Chat" style="display: block; margin: auto;" />
+    </button>
+    <div id="plantae-help-tooltip" class="help-tooltip" style="pointer-events: none; z-index:10001;">
+      Need help?
+      <span class="help-tooltip-arrow"></span>
+    </div>
+  </div>
+  <div id="plantae-chat-box">
+    <div id="plantae-chat-header">
+      <h5>Plantae Assistant</h5>
+      <div>
+        <button id="plantae-clear-btn" title="Clear chat"><i class="fa fa-trash"></i></button>
+        <button id="plantae-chat-close" aria-label="Close chat">&times;</button>
+      </div>
+    </div>
+    <div id="plantae-chat-body"></div>
+    <div id="plantae-chat-footer">
+      {% if user.is_authenticated %}
+        <div class="input-group">
+          <textarea id="chat-input" class="form-control" placeholder="Type your message..." onkeypress="if(event.key === 'Enter') sendMessage();"></textarea>
+          <input type="file" id="chat-image" accept="image/*" style="display:none;">
+          <button id="imageBtn" type="button" title="Attach image">
+            <img id="imageIcon" src="{% static 'agent/img/image_idle.png' %}" alt="Attach" style="width: 32px; height: 32px;">
+          </button>
+          <button id="voiceBtn" type="button" title="Speak"><img id="voiceIcon" src="{% static 'agent/img/mic_idle.png' %}" alt="Mic" style="width: 40px; height: 36px;"></button>
+          <button id="sendBtn" type="button" title="Send">
+            <img id="sendIcon" src="{% static 'agent/img/send_idle.png' %}" alt="Send" style="width: 32px; height: 32px;">
+          </button>
+        </div>
+        <div id="image-preview" style="margin-top:6px;"></div>
+      {% else %}
+        <div class="d-flex justify-content-center align-items-center" style="height: 60px;">
+          <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-success w-100">
+            Login to talk with Plantae Assistant
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- CSRF Token for AJAX requests -->
+{% csrf_token %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+<script>
+let chatHistory = [];
+let first_name = "{% if user_first_name %}{{ user_first_name|escapejs }}{% else %}User{% endif %}";
+
+// Image icon paths
+const IMAGE_IDLE_SRC = "{% static 'agent/img/image_idle.png' %}";
+const IMAGE_ACTIVE_SRC = "{% static 'agent/img/image_active.gif' %}";
+
+// Send icon paths
+const SEND_IDLE_SRC = "{% static 'agent/img/send_idle.png' %}";
+const SEND_ACTIVE_SRC = "{% static 'agent/img/send_active.gif' %}";
+
+function getCSRFToken() {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  return csrfToken;
+}
+
+// Fixed: Single renderChatHistory function (removed duplicate)
+function renderChatHistory() {
+  const chatBox = document.getElementById("plantae-chat-body");
+  if (!chatBox) return;
+  chatBox.innerHTML = "";
+  
+  if (!chatHistory || chatHistory.length === 0) {
+    // Show default greeting when no chat history
+    const greetMsg = `Hey ${first_name}, this is your personal PLANTAE assistant. How can I assist you today?`;
+    chatBox.innerHTML += `
+      <div class="d-flex justify-content-start my-2">
+        <div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${greetMsg}</div>
+      </div>
+    `;
+  } else {
+    // Render chat history
+    for (let i = 0; i < chatHistory.length; i++) {
+      const item = chatHistory[i];
+      const alignment = item.role === "user" ? "end" : "start";
+      const bgClass = item.role === "user" ? "bg-primary text-white" : "bg-light";
+      const messageHtml = `
+        <div class="d-flex justify-content-${alignment} my-2">
+          <div class="${bgClass} rounded-3 p-2 px-3" style="max-width: 70%;">${
+            item.role === "agent" ? DOMPurify.sanitize(marked.parse(item.content)) : item.content
+          }</div>
+        </div>
+      `;
+      chatBox.innerHTML += messageHtml;
+    }
+  }
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// Fixed: Added missing fetchAndRenderChatHistory function
+function fetchAndRenderChatHistory() {
+  fetch("/agent/get_chat_history/", {
+    method: "GET",
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCSRFToken()
+    }
+  })
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.json();
+  })
+  .then(data => {
+    chatHistory = data.messages || [];
+    renderChatHistory();
+  })
+  .catch(error => {
+    // Fallback to empty chat history
+    chatHistory = [];
+    renderChatHistory();
+  });
+}
+
+// Image upload logic
+const imageBtn = document.getElementById('imageBtn');
+const imageIcon = document.getElementById('imageIcon');
+const imageInput = document.getElementById('chat-image');
+const imagePreview = document.getElementById('image-preview');
+let selectedImage = null;
+
+// Fixed: Added null checks for image elements
+if (imageBtn && imageIcon && imageInput && imagePreview) {
+  imageBtn.addEventListener('click', function() {
+    imageIcon.src = IMAGE_ACTIVE_SRC;
+    setTimeout(() => { imageIcon.src = IMAGE_IDLE_SRC; }, 2000);
+    imageInput.click();
+  });
+  
+  imageInput.addEventListener('change', function() {
+    if (imageInput.files && imageInput.files[0]) {
+      selectedImage = imageInput.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        imagePreview.innerHTML = `<img src="${e.target.result}" alt="preview"><button id="remove-image-btn" title="Remove image">&times;</button>`;
+        const removeBtn = document.getElementById('remove-image-btn');
+        if (removeBtn) {
+          removeBtn.onclick = function() {
+            selectedImage = null;
+            imageInput.value = "";
+            imagePreview.innerHTML = '';
+          };
+        }
+      };
+      reader.readAsDataURL(selectedImage);
+    } else {
+      selectedImage = null;
+      imagePreview.innerHTML = '';
+    }
+  });
+}
+
+const sendBtn = document.getElementById('sendBtn');
+const sendIcon = document.getElementById('sendIcon');
+
+function sendMessage() {
+  const input = document.getElementById("chat-input");
+  const chatBox = document.getElementById("plantae-chat-body");
+  
+  if (!input || !chatBox) {
+    return;
+  }
+  
+  const message = input.value.trim();
+  if (!message && !selectedImage) return;
+  
+  // Add user's message and image to UI
+  let userMsgHtml = `<div class="d-flex justify-content-end my-2"><div class="bg-primary text-white rounded-3 p-2 px-3" style="max-width: 70%;">`;
+  if (selectedImage) {
+    const imgURL = URL.createObjectURL(selectedImage);
+    userMsgHtml += `<img src='${imgURL}' alt='img' style='max-width:80px; max-height:80px; border-radius:8px; margin-bottom:4px; display:block;'>`;
+  }
+  userMsgHtml += `${message}</div></div>`;
+  chatBox.innerHTML += userMsgHtml;
+  
+  // Clear input and image
+  input.value = "";
+  if (imageInput) {
+    imageInput.value = "";
+  }
+  if (imagePreview) {
+    imagePreview.innerHTML = '';
+  }
+  chatBox.scrollTop = chatBox.scrollHeight;
+  
+  // Add loading placeholder
+  const loadingId = `agent-reply-${Date.now()}`;
+  chatBox.innerHTML += `<div class="d-flex justify-content-start my-2" id="${loadingId}"><div class="bg-light text-muted rounded-3 p-2 px-3" style="max-width: 70%;"><em>Agent is typing...</em></div></div>`;
+  chatBox.scrollTop = chatBox.scrollHeight;
+  
+  // Send to backend
+  const formData = new FormData();
+  formData.append('message', message);
+  if (selectedImage) {
+    formData.append('image', selectedImage);
+  }
+  
+  // Set send icon to active (gif)
+  if (sendIcon) sendIcon.src = SEND_ACTIVE_SRC;
+
+  fetch("/agent/ask/", {
+    method: "POST",
+    headers: { "X-CSRFToken": getCSRFToken() },
+    credentials: "same-origin",
+    body: formData
+  })
+  .then(res => {
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    return res.json();
+  })
+  .then(data => {
+    const reply = data.response;
+    const replyEl = document.getElementById(loadingId);
+    if (replyEl) {
+      replyEl.innerHTML = `<div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${DOMPurify.sanitize(marked.parse(reply))}</div>`;
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    // Only play TTS if last message was from STT
+    if (lastMessageWasSTT && typeof playTTS === 'function') {
+      playTTS(reply);
+      lastMessageWasSTT = false; // Reset flag
+    }
+
+    // After message is sent and response is received, revert to idle icon
+    if (sendIcon) sendIcon.src = SEND_IDLE_SRC;
+  })
+  .catch(error => {
+    console.error('Error sending message:', error);
+    const replyEl = document.getElementById(loadingId);
+    if (replyEl) {
+      replyEl.innerHTML = `<div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;"><em>Sorry, there was an error processing your request. Please try again.</em></div>`;
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // After message is sent and response is received, revert to idle icon
+    if (sendIcon) sendIcon.src = SEND_IDLE_SRC;
+  });
+  
+  selectedImage = null;
+}
+
+// Fixed: Added Enter key support for chat input
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Enter' && event.target.id === 'chat-input') {
+    event.preventDefault();
+    sendMessage();
+  }
+});
+
+window.addEventListener("DOMContentLoaded", function() {
+  fetchAndRenderChatHistory();
+});
+
+// Toggle chat widget
+const chatWidget = document.getElementById('plantae-chat-widget');
+const chatBox = document.getElementById('plantae-chat-box');
+const chatToggle = document.getElementById('plantae-chat-toggle');
+const chatClose = document.getElementById('plantae-chat-close');
+
+// Fixed: Added null checks for chat elements
+if (chatToggle && chatBox) {
+  chatToggle.addEventListener('click', function() {
+    console.log('Chat toggle button clicked');
+    chatBox.classList.add('open');
+    chatToggle.style.display = 'none';
+    // Hide the tooltip when chat is opened
+    if (helpTooltip) helpTooltip.style.display = 'none';
+    
+    setTimeout(() => {
+      const chatInput = document.getElementById('chat-input');
+      if (chatInput) {
+        chatInput.focus();
+      }
+      // Scroll chat body to bottom after opening
+      const chatBody = document.getElementById('plantae-chat-body');
+      if (chatBody) {
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+    }, 200);
+
+    // Check condition
+    const shouldCallGreet = !chatHistory || chatHistory.length === 0;
+    
+    if (shouldCallGreet) {
+      fetch("/agent/greet/", {
+        method: "POST",
+        headers: { "X-CSRFToken": getCSRFToken() },
+        credentials: "same-origin"
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (data.greet) {
+          // Fixed: Update local chatHistory and render
+          chatHistory.push({
+            role: "agent",
+            content: data.greet,
+            timestamp: new Date().toISOString().slice(0, 19).replace('T', ' ')
+          });
+          renderChatHistory();
+        }
+      })
+      .catch(error => {
+        // Fallback to default greeting
+        renderChatHistory();
+      });
+    }
+  });
+}
+
+if (chatClose && chatBox && chatToggle) {
+  chatClose.addEventListener('click', function() {
+    chatBox.classList.remove('open');
+    chatToggle.style.display = 'flex';
+  });
+}
+
+// Clear chat
+const clearBtn = document.getElementById('plantae-clear-btn');
+if (clearBtn) {
+  clearBtn.addEventListener('click', function() {
+    fetch("/agent/clear_chat/", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCSRFToken()
+      }
+    })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (data.success) {
+        chatHistory = [];
+        renderChatHistory();
+      } else {
+        alert('Failed to clear chat: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(error => {
+      alert('Error clearing chat: ' + error.message);
+    });
+  });
+}
+
+// STT - ElevenLabs
+let mediaRecorder, audioChunks = [], silenceTimer = null, audioContext, analyser, microphone, dataArray, silenceDetectionActive = false;
+let lastMessageWasSTT = false;
+
+function startVoiceRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        // Clean up
+        stream.getTracks().forEach(track => track.stop());
+        if (audioContext && audioContext.state !== "closed") {
+          audioContext.close();
+        }
+        silenceDetectionActive = false;
+        
+        const voiceIcon = document.getElementById('voiceIcon');
+        if (voiceIcon) {
+          voiceIcon.src = "{% static 'agent/img/mic_idle.png' %}";
+        }
+        
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'audio.webm');
+        
+        fetch('/agent/stt/', {
+          method: 'POST',
+          headers: { "X-CSRFToken": getCSRFToken() },
+          body: formData
+        })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          if (data.text) {
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput) {
+              chatInput.value = data.text;
+              lastMessageWasSTT = true; // Set flag
+              sendMessage();
+            }
+          } else {
+            alert('STT error: ' + (data.error || 'Unknown error'));
+          }
+        })
+        .catch(error => {
+          console.error('STT error:', error);
+          alert('STT error: ' + error.message);
+        });
+      };
+      
+      // Set up audio analysis
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      microphone = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser();
+      microphone.connect(analyser);
+      dataArray = new Uint8Array(analyser.fftSize);
+      silenceDetectionActive = true;
+      
+      function checkSilence() {
+        if (!silenceDetectionActive) return;
+        
+        analyser.getByteTimeDomainData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          let val = (dataArray[i] - 128) / 128;
+          sum += val * val;
+        }
+        let rms = Math.sqrt(sum / dataArray.length);
+        
+        if (rms < 0.01) {
+          if (!silenceTimer) {
+            silenceTimer = setTimeout(() => {
+              if (mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+              }
+              silenceDetectionActive = false;
+              silenceTimer = null;
+            }, 1300);
+          }
+        } else {
+          if (silenceTimer) {
+            clearTimeout(silenceTimer);
+            silenceTimer = null;
+          }
+        }
+        
+        if (mediaRecorder.state === 'recording') {
+          requestAnimationFrame(checkSilence);
+        }
+      }
+      
+      mediaRecorder.start();
+      const voiceIcon = document.getElementById('voiceIcon');
+      if (voiceIcon) {
+        voiceIcon.src = "{% static 'agent/img/mic_recording.gif' %}";
+      }
+      checkSilence();
+    })
+    .catch(error => {
+      console.error('Error accessing microphone:', error);
+      alert('Error accessing microphone: ' + error.message);
+    });
+}
+
+// Fixed: Added null check for voice button
+const voiceBtn = document.getElementById('voiceBtn');
+if (voiceBtn) {
+  voiceBtn.addEventListener('click', function() {
+    startVoiceRecording();
+  });
+}
+
+// TTS - ElevenLabs
+function playTTS(text) {
+  const formData = new FormData();
+  formData.append('text', text);
+  
+  fetch('/agent/tts/', {
+    method: 'POST',
+    headers: { "X-CSRFToken": getCSRFToken() },
+    body: formData
+  })
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.play().catch(error => {
+      console.error('Error playing TTS audio:', error);
+    });
+  })
+  .catch(error => {
+    console.error('TTS error:', error);
+  });
+}
+
+if (sendBtn && sendIcon) {
+  sendBtn.addEventListener('click', function() {
+    sendIcon.src = SEND_ACTIVE_SRC;
+    setTimeout(() => { sendIcon.src = SEND_IDLE_SRC; }, 2000);
+    sendMessage();
+  });
+}
+
+const chatToggleIcon = document.getElementById('plantae-chat-toggle-icon');
+const helpTooltip = document.getElementById('plantae-help-tooltip');
+
+// Paths to your static images
+const TOGGLE_IDLE_SRC = "{% static 'agent/img/toggle_idle.png' %}";
+const TOGGLE_ACTIVE_SRC = "{% static 'agent/img/toggle_active.gif' %}";
+
+// Change icon on hover
+if (chatToggle && chatToggleIcon) {
+  chatToggle.addEventListener('mouseenter', function() {
+    console.log('Chat toggle button hovered');
+    chatToggleIcon.src = TOGGLE_ACTIVE_SRC;
+    if (helpTooltip) helpTooltip.style.opacity = "1";
+  });
+  chatToggle.addEventListener('mouseleave', function() {
+    console.log('Chat toggle button unhovered');
+    chatToggleIcon.src = TOGGLE_IDLE_SRC;
+    if (helpTooltip) helpTooltip.style.opacity = "1";
+  });
+  chatToggle.addEventListener('focus', function() {
+    console.log('Chat toggle button focused');
+    chatToggleIcon.src = TOGGLE_ACTIVE_SRC;
+    if (helpTooltip) helpTooltip.style.opacity = "1";
+  });
+  chatToggle.addEventListener('blur', function() {
+    console.log('Chat toggle button blurred');
+    chatToggleIcon.src = TOGGLE_IDLE_SRC;
+    if (helpTooltip) helpTooltip.style.opacity = "1";
+  });
+  // Hide tooltip when chat is open
+  chatToggle.addEventListener('click', function() {
+    if (helpTooltip) helpTooltip.style.opacity = "0";
+  });
+}
+</script>

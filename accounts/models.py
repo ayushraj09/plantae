@@ -69,3 +69,18 @@ class Account(AbstractBaseUser):
     def has_module_perms(self, add_label):
         return True
 
+class UserProfile(models.Model):
+    user = models.OneToOneField(Account, on_delete=models.CASCADE)  #one profile for one account, if foreignkeyfield then many profile for one account
+    address_line_1 = models.CharField(blank=True, max_length=100)
+    address_line_2 = models.CharField(blank=True, max_length=100)
+    profile_picture = models.ImageField(blank=True, upload_to='userprofile')
+    pin_code = models.CharField(max_length=6, validators=[RegexValidator(regex=r'^\d{6}$', message='Pin code must be exactly 6 digits', code='invalid_pin')])
+    city = models.CharField(blank=True, max_length=30)
+    state = models.CharField(blank=True, max_length=30)
+    country = models.CharField(blank=True, max_length=50)
+
+    def __str__(self):
+        return self.user.first_name
+    
+    def full_address(self):
+        return f'{self.address_line_1} {self.address_line_2}'

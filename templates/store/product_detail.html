@@ -9,11 +9,19 @@
             <div class="row no-gutters">
                 <aside class="col-md-6">
                     <article class="gallery-wrap">
-                        <div class="img-big-wrap">
-                            <a href="#"><img src="{{ single_product.product_images.url }}"></a>
+                        <div class="img-big-wrap mainImage">
+                            <center><img src="{{ single_product.product_images.url }}"></center>
                         </div> <!-- img-big-wrap.// -->
 
                     </article> <!-- gallery-wrap .end// -->
+                    <ul class="thumb">
+                        <li>
+                            <a href="{{ single_product.product_images.url }}" target="mainImage"><img src="{{ single_product.product_images.url }}" alt="Product Image"></a>
+                            {% for i in product_gallery %}
+                            <a href="{{i.image.url}}" target="mainImage"><img src="{{i.image.url}}" alt="Product Image"></a>
+                            {% endfor %}
+                        </li>
+                    </ul>
                 </aside>
                 <main class="col-md-6 border-left">
 
@@ -70,57 +78,142 @@
                             </div> -->
                             <!-- END ATTRIBUTE CARDS SECTION -->
 
-
-
-
-
                             <hr>
                             {% if "color" in single_product.allowed_variations %}
-                            <div class="row">
-                            <div class="item-option-select">
-                                <h6>Select Color</h6>
-                                <select name="color" class="form-control" required>
-                                    <option value="" disabled selected>Choose Color:</option>
+                            <div class="form-group" style="margin-top: 24px;">
+                                <label for="color-select" class="font-weight-bold" style="margin-bottom: 8px;">Select Color</label>
+                                <select name="color" id="color-select" class="form-control" required style="max-width: 250px;">
+                                <option value="" disabled {% if not single_product.variation_set.colors|dictsort:"is_default"|length %}selected{% endif %}></option>
                                     {% for variation in single_product.variation_set.colors %}
-                                        <option value="{{ variation.variation_value | lower }}">{{ variation.variation_value | capfirst }}</option>
+                                        <option value="{{ variation.variation_value|lower }}">{{ variation.variation_value|capfirst }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
-                            </div>
+                            <hr>
                             {% endif %}
 
                             <!-- Only show Size dropdown if allowed_variations contains "size" -->
                             {% if "size" in single_product.allowed_variations %}
-                            <div class="row">
-                            <div class="item-option-select">
-                                <h6>Select Size</h6>
-                                <select name="size" class="form-control" required>
-                                    <option value="" disabled selected>Choose Size:</option>
+                            <div class="form-group" style="margin-top: 24px;">
+                                <label for="size-select" class="font-weight-bold" style="margin-bottom: 8px;">Select Size</label>
+                                <select name="size" id="size-select" class="form-control" required style="max-width: 250px;">
+                                <option value="" disabled {% if not single_product.variation_set.sizes %}selected{% endif %}></option>
                                     {% for variation in single_product.variation_set.sizes %}
-                                        <option value="{{ variation.variation_value | lower }}">{{ variation.variation_value | capfirst }}</option>
+                                        <option value="{{ variation.variation_value|lower }}">{{ variation.variation_value|capfirst }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
-                            </div>
+                            <hr>
                             {% endif %}
 
-                            <!-- Only show Pack dropdown if allowed_variations contains "pack" -->
                             {% if "pack" in single_product.allowed_variations %}
-                            <div class="row">
-                            <div class="item-option-select">
-                                <h6>Select Pack Size</h6>
-                                <select name="pack" class="form-control" required>
-                                    <option value="" disabled selected>Choose Pack</option>
+                            <div class="form-group" style="margin-top: 24px;">
+                                <label for="pack-select" class="font-weight-bold" style="margin-bottom: 8px;">Select Pack Size</label>
+                                <select name="pack" id="pack-select" class="form-control" required style="max-width: 250px;">
+                                <option value="" disabled {% if not single_product.variation_set.all %}selected{% endif %}>Choose Pack</option>
                                     {% for variation in single_product.variation_set.all %}
                                         {% if variation.variation_category == "pack" %}
-                                            <option value="{{ variation.variation_value | lower }}">{{ variation.variation_value | capfirst }}</option>
+                                            <option value="{{ variation.variation_value|lower }}">{{ variation.variation_value|capfirst }}</option>
                                         {% endif %}
                                     {% endfor %}
                                 </select>
                             </div>
-                            </div>
-                            {% endif %}
                             <hr>
+                            {% endif %}
+                            
+
+                            <!-- Plant Care Information Card -->
+                            {% if plant_info %}
+                            <div class="card mt-3 mb-3 plant-care-card" style="
+                                border: 1px solid #e0e0e0; 
+                                border-radius: 12px; 
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                transition: all 0.3s ease;
+                                cursor: pointer;
+                            ">
+                                <div class="card-body" style="padding: 20px;">
+                                    <div class="row">
+                                        <!-- Left Side -->
+                                        <div class="col-md-6" style="border-right: 1px solid #e0e0e0; padding-right: 20px;">
+                                            {% for point in plant_info.care_points %}
+                                                {% if forloop.counter0|divisibleby:2 %}
+                                                    <div class="plant-info-item mb-3" style="
+                                                        display: flex; 
+                                                        align-items: flex-start; 
+                                                        transition: transform 0.2s ease;
+                                                    ">
+                                                        <img src="{% static 'images/icons/leaf_arrow_right.png' %}" 
+                                                            alt="leaf bullet" 
+                                                            style="
+                                                                width: 26px; 
+                                                                height: 26px; 
+                                                                margin-right: 12px; 
+                                                                margin-top: 2px;
+                                                                flex-shrink: 0;
+                                                            ">
+                                                        <span style="color: #495057; line-height: 1.4;">{{ point }}</span>
+                                                    </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        
+                                        <!-- Right Side -->
+                                        <div class="col-md-6" style="padding-left: 20px;">
+                                            {% for point in plant_info.care_points %}
+                                                {% if not forloop.counter0|divisibleby:2 %}
+                                                    <div class="plant-info-item mb-3" style="
+                                                        display: flex; 
+                                                        align-items: flex-start; 
+                                                        transition: transform 0.2s ease;
+                                                    ">
+                                                        <img src="{% static 'images/icons/leaf_arrow_right.png' %}" 
+                                                            alt="leaf bullet" 
+                                                            style="
+                                                                width: 26px; 
+                                                                height: 26px; 
+                                                                margin-right: 12px; 
+                                                                margin-top: 2px;
+                                                                flex-shrink: 0;
+                                                            ">
+                                                        <span style="color: #495057; line-height: 1.4;">{{ point }}</span>
+                                                    </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <style>
+                            .plant-care-card:hover {
+                                transform: translateY(-2px);
+                                box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
+                                border-color: #28a745 !important;
+                            }
+
+                            .plant-care-card:hover .plant-info-item {
+                                transform: translateX(2px);
+                            }
+
+                            .plant-care-card .plant-info-item:hover {
+                                transform: translateX(4px) !important;
+                            }
+
+                            @media (max-width: 768px) {
+                                .plant-care-card .col-md-6:first-child {
+                                    border-right: none !important;
+                                    border-bottom: 1px solid #e0e0e0;
+                                    padding-bottom: 15px;
+                                    margin-bottom: 15px;
+                                }
+                                
+                                .plant-care-card .col-md-6:last-child {
+                                    padding-left: 0 !important;
+                                }
+                            }
+                            </style>
+                            {% endif %}
+                            
 
                         </article> <!-- product-info-aside .// -->
                     </form>

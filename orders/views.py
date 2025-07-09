@@ -55,6 +55,7 @@ def payments(request):
         'total': total,
         'tax': tax,
         'grand_total': grand_total,
+        'checkout_page': True,
     }
 
     return render(request, 'orders/payments.html', context)
