@@ -100,7 +100,7 @@ plantae/
 
 1. **Clone the repo:**
    ```bash
-   git clone https://github.com/yourusername/plantae.git
+   git clone https://github.com/ayushraj09/plantae.git
    cd plantae
    ```
 2. **Install dependencies:**
