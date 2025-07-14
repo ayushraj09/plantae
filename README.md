@@ -42,7 +42,7 @@
 
 | Product Detail | Chat Widget | Admin |
 |----------------|-------------|-------|
-| ![Product Detail](docs/screenshots/product_detail.png) | ![Chat Widget](docs/screenshots/agent_chat.png) | ![Admin](docs/screenshots/admin.png) |
+| ![Product Detail](docs/screenshots/product_detail.png) | ![Chat Widget](docs/screenshots/agent_chat.png) | <img src="docs/screenshots/admin.png" alt="Admin" height="120"> |
 
 | Cart | Order Invoice |
 |------|--------------|
