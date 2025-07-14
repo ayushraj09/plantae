@@ -36,9 +36,17 @@
 
 ## Screenshots
 
-| Home Page | Store | Product Detail | Cart | Chat Widget | Admin | Order Invoice |
-|-----------|-------|---------------|------|-------------|-------|---------------|
-| ![Home](docs/screenshots/home.png) | ![Store](docs/screenshots/store.png) | ![Product](docs/screenshots/product_detail.png) | ![Cart](docs/screenshots/cart.png) | ![Chat](docs/screenshots/agent_chat.png) | ![Admin](docs/screenshots/admin.png) | ![Order](docs/screenshots/payment_success.png) |
+| Home Page | Store |
+|-----------|-------|
+| ![Home Page](docs/screenshots/home.png) | ![Store](docs/screenshots/store.png) |
+
+| Product Detail | Chat Widget | Admin |
+|----------------|-------------|-------|
+| ![Product Detail](docs/screenshots/product_detail.png) | ![Chat Widget](docs/screenshots/chat_widget.png) | ![Admin](docs/screenshots/admin.png) |
+
+| Cart | Order Invoice |
+|------|--------------|
+| ![Cart](docs/screenshots/cart.png) | ![Order Invoice](docs/screenshots/payment_success.png) |
 
 ---
 
