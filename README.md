@@ -42,7 +42,7 @@
 
 | Product Detail | Chat Widget | Admin |
 |----------------|-------------|-------|
-| ![Product Detail](docs/screenshots/product_detail.png) | ![Chat Widget](docs/screenshots/chat_widget.png) | ![Admin](docs/screenshots/admin.png) |
+| ![Product Detail](docs/screenshots/product_detail.png) | ![Chat Widget](docs/screenshots/agent_chat.png) | ![Admin](docs/screenshots/admin.png) |
 
 | Cart | Order Invoice |
 |------|--------------|
