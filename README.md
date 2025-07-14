@@ -36,17 +36,21 @@
 
 ## Screenshots
 
-| Home Page | Store |
+| Home Page | Admin |
 |-----------|-------|
-| ![Home Page](docs/screenshots/home.png) | ![Store](docs/screenshots/store.png) |
+| ![Home Page](docs/screenshots/home.png) <br> `docs/screenshots/home.png` | ![Admin](docs/screenshots/admin.png) <br> `docs/screenshots/admin.png` |
 
-| Product Detail | Chat Widget | Admin |
-|----------------|-------------|-------|
-| ![Product Detail](docs/screenshots/product_detail.png) | ![Chat Widget](docs/screenshots/agent_chat.png) | ![Admin](docs/screenshots/admin.png) |
+| Store | Product Detail |
+|-------|---------------|
+| ![Store](docs/screenshots/store.png) <br> `docs/screenshots/store.png` | ![Product Detail](docs/screenshots/product_detail.png) <br> `docs/screenshots/product_detail.png` |
 
-| Cart | Order Invoice |
-|------|--------------|
-| ![Cart](docs/screenshots/cart.png) | ![Order Invoice](docs/screenshots/payment_success.png) |
+| Cart | Payment Success |
+|------|----------------|
+| ![Cart](docs/screenshots/cart.png) <br> `docs/screenshots/cart.png` | ![Order Invoice](docs/screenshots/payment_success.png) <br> `docs/screenshots/payment_success.png` |
+
+| Chat Widget | Dashboard |
+|-------------|-----------|
+| ![Chat Widget](docs/screenshots/agent_chat.png) <br> `docs/screenshots/agent_chat.png` | ![Dashboard](docs/screenshots/dashboard.png) <br> `docs/screenshots/dashboard.png` |
 
 ---
 
