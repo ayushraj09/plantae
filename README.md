@@ -163,7 +163,8 @@ Manages products, product variations, reviews, and the main store interface.
 - **Backend:** Django 4.2 (Python)
 - **Frontend:** Django Templates, Bootstrap, jQuery, FontAwesome
 - **AI/Agent:** LangChain, OpenAI, LangGraph, ElevenLabs (TTS/STT)
-- **Database:** SQLite (default, can be swapped)
+- **LLM:** OpenAI's GPT-4.1-nano (2025-04-14)
+- **Database:** Azure Database for PostgreSQL Flexible Server
 - **Payments:** Razorpay
 - **Other:** dotenv, crispy-forms, admin-thumbnails, etc.
 
