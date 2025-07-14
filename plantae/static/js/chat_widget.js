@@ -31,6 +31,7 @@ function getCSRFToken() {
 function renderChatHistory() {
   const chatBox = document.getElementById("plantae-chat-body");
   if (!chatBox) return;
+  console.log('[ChatWidget] Rendering chat history:', chatHistory);
   chatBox.innerHTML = "";
   
   if (!chatHistory || chatHistory.length === 0) {
@@ -42,18 +43,29 @@ function renderChatHistory() {
       </div>
     `;
   } else {
-    // Render chat history
+    // Render chat history (text and images)
     for (let i = 0; i < chatHistory.length; i++) {
       const item = chatHistory[i];
       const alignment = item.role === "user" ? "end" : "start";
       const bgClass = item.role === "user" ? "bg-primary text-white" : "bg-light";
-      const messageHtml = `
-        <div class="d-flex justify-content-${alignment} my-2">
-          <div class="${bgClass} rounded-3 p-2 px-3" style="max-width: 70%;">${
-            item.role === "agent" ? DOMPurify.sanitize(marked.parse(item.content)) : item.content
-          }</div>
-        </div>
-      `;
+      let messageHtml = "";
+      if (item.type === "image") {
+        messageHtml = `
+          <div class="d-flex justify-content-${alignment} my-2">
+            <div class="${bgClass} rounded-3 p-2 px-3" style="max-width: 70%;">
+              <img src="${item.content}" alt="uploaded" style="max-width:120px; max-height:120px; border-radius:8px;">
+            </div>
+          </div>
+        `;
+      } else {
+        messageHtml = `
+          <div class="d-flex justify-content-${alignment} my-2">
+            <div class="${bgClass} rounded-3 p-2 px-3" style="max-width: 70%;">${
+              item.role === "agent" ? DOMPurify.sanitize(marked.parse(item.content)) : item.content
+            }</div>
+          </div>
+        `;
+      }
       chatBox.innerHTML += messageHtml;
     }
   }
@@ -69,18 +81,24 @@ function fetchAndRenderChatHistory() {
       "X-CSRFToken": getCSRFToken()
     }
   })
-  .then(res => {
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-    return res.json();
-  })
+  .then(res => res.json())
   .then(data => {
-    chatHistory = data.messages || [];
+    // Merge messages and images by timestamp
+    const messages = data.messages || [];
+    const images = data.images || [];
+    let merged = messages.map(m => ({...m, type: "text"}));
+    merged = merged.concat(images.map(img => ({
+      role: "user", // <-- change from "agent" to "user"
+      content: img.url,
+      timestamp: img.timestamp,
+      type: "image"
+    })));
+    // Sort by timestamp
+    merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    chatHistory = merged;
     renderChatHistory();
   })
   .catch(error => {
-    // Fallback to empty chat history
     chatHistory = [];
     renderChatHistory();
   });
@@ -137,6 +155,9 @@ function sendMessage() {
   
   const message = input.value.trim();
   if (!message && !selectedImage) return;
+  if (selectedImage) {
+    console.log('[ChatWidget] Uploading image:', selectedImage);
+  }
   
   // Add user's message and image to UI
   let userMsgHtml = `<div class="d-flex justify-content-end my-2"><div class="bg-primary text-white rounded-3 p-2 px-3" style="max-width: 70%;">`;
@@ -169,7 +190,7 @@ function sendMessage() {
     formData.append('image', selectedImage);
   }
   
-  // Set send icon to active (gif)
+  // Set send icon to active
   if (sendIcon) sendIcon.src = SEND_ACTIVE_SRC;
 
   fetch("/agent/ask/", {
@@ -179,15 +200,92 @@ function sendMessage() {
     body: formData
   })
   .then(res => {
+    console.log('[ChatWidget] /agent/ask/ response:', res);
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     return res.json();
   })
   .then(data => {
+    console.log('[ChatWidget] /agent/ask/ data:', data);
     const reply = data.response;
     const replyEl = document.getElementById(loadingId);
     if (replyEl) {
       replyEl.innerHTML = `<div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${DOMPurify.sanitize(marked.parse(reply))}</div>`;
       chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // Handle interrupt for variation selection
+    if (data.interrupt && data.interrupt_data && data.interrupt_data.type === "variation_selection") {
+      const { product_name, variation_dict, message } = data.interrupt_data;
+      const variations = variation_dict; // for backward compatibility with rest of code
+      // Improved Bootstrap styling for dropdown
+      let variationHtml = `<div class="card shadow-sm border-0 mb-2" style="max-width: 100%; background: #f8f9fa;">`;
+      variationHtml += `<div class="card-body p-3">`;
+      variationHtml += `<h6 class="fw-bold mb-3">${message}</h6>`;
+      variationHtml += `<form class="row g-2 align-items-center">`;
+      for (const [varType, options] of Object.entries(variations)) {
+        variationHtml += `<div class="col-12 col-md-6 mb-2">`;
+        variationHtml += `<label class="form-label fw-semibold me-2" for="variation-select-${varType}">${varType.charAt(0).toUpperCase() + varType.slice(1)}:</label>`;
+        variationHtml += `<select id="variation-select-${varType}" class="form-select form-select-sm d-inline-block w-auto ms-2">`;
+        for (const opt of options) {
+          variationHtml += `<option value="${opt}">${opt}</option>`;
+        }
+        variationHtml += `</select>`;
+        variationHtml += `</div>`;
+      }
+      variationHtml += `<div class="col-12 mt-2">`;
+      variationHtml += `<button id="variation-submit-btn" type="button" class="btn btn-success btn-sm px-4 py-2 fw-bold shadow-sm">Submit</button>`;
+      variationHtml += `</div>`;
+      variationHtml += `</form>`;
+      variationHtml += `</div></div>`;
+      chatBox.innerHTML += variationHtml;
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      document.getElementById('variation-submit-btn').onclick = function() {
+        const selections = {};
+        for (const varType of Object.keys(variations)) {
+          selections[varType] = document.getElementById(`variation-select-${varType}`).value;
+        }
+        // Remove the variation dropdown card (the last .card in chatBox)
+        const cards = chatBox.querySelectorAll('.card');
+        if (cards.length > 0) {
+          cards[cards.length - 1].remove();
+        }
+        // Show chosen variation as a normal chat message
+        let chosenText = `Chosen variation for <b>${product_name}</b>:`;
+        const varList = Object.entries(selections).map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: <b>${v}</b>`).join(', ');
+        chosenText += ' ' + varList;
+        chatBox.innerHTML += `<div class="d-flex justify-content-start my-2"><div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${chosenText}</div></div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+        // Save chosen variation message to chat history
+        fetch("/agent/ask/", {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ message: chosenText, save_only: true })
+        });
+        // Send the selection as a resume to the backend
+        const formData = new FormData();
+        formData.append('resume_data', JSON.stringify(selections));
+        fetch("/agent/ask/", {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken() },
+          credentials: "same-origin",
+          body: formData
+        })
+        .then(res => {
+          console.log('[ChatWidget] /agent/ask/ (resume) response:', res);
+          return res.json();
+        })
+        .then(data => {
+          console.log('[ChatWidget] /agent/ask/ (resume) data:', data);
+          // Render the agent's follow-up response
+          chatBox.innerHTML += `<div class="d-flex justify-content-start my-2"><div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${DOMPurify.sanitize(marked.parse(data.response))}</div></div>`;
+          chatBox.scrollTop = chatBox.scrollHeight;
+        })
+        .catch(error => {
+          console.error('[ChatWidget] Error submitting variation selections:', error);
+        });
+      };
     }
     
     // Only play TTS if last message was from STT
@@ -200,7 +298,7 @@ function sendMessage() {
     if (sendIcon) sendIcon.src = SEND_IDLE_SRC;
   })
   .catch(error => {
-    console.error('Error sending message:', error);
+    console.error('[ChatWidget] Error sending message:', error);
     const replyEl = document.getElementById(loadingId);
     if (replyEl) {
       replyEl.innerHTML = `<div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;"><em>Sorry, there was an error processing your request. Please try again.</em></div>`;

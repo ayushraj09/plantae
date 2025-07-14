@@ -1,5 +1,9 @@
 # Plantae 🌱
 
+<p align="center">
+  <img src="plantae/static/images/logo.png" alt="Plantae Logo" width="180"/>
+</p>
+
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
@@ -12,13 +16,13 @@
 
 ## Table of Contents
 - [Overview](#overview)
+- [Screenshots](#screenshots)
 - [Features](#features)
-- [AI Agent Capabilities](#ai-agent-capabilities)
+- [AI Agent & Workflow](#ai-agent--workflow)
+- [App Structure](#app-structure)
 - [Tech Stack](#tech-stack)
-- [Directory Structure](#directory-structure)
 - [Getting Started](#getting-started)
 - [Deployment](#deployment)
-- [Screenshots](#screenshots)
 - [License](#license)
 - [Contact](#contact)
 
@@ -27,6 +31,14 @@
 ## Overview
 
 **Plantae** is a modern, AI-powered e-commerce platform for plant and gardening products. It features a conversational agent for plant care, product recommendations, and order support. The project is built with Django and deployed on an Azure VM at [plantae.live](https://plantae.live).
+
+---
+
+## Screenshots
+
+| Home Page | Store | Product Detail | Cart | Chat Widget | Admin | Order Invoice |
+|-----------|-------|---------------|------|-------------|-------|---------------|
+| ![Home](docs/screenshots/home.png) | ![Store](docs/screenshots/store.png) | ![Product](docs/screenshots/product_detail.png) | ![Cart](docs/screenshots/cart.png) | ![Chat](docs/screenshots/agent_chat.png) | ![Admin](docs/screenshots/admin.png) | ![Order](docs/screenshots/payment_success.png) |
 
 ---
 
@@ -39,15 +51,15 @@
 - **Order Management:** Place orders, view order history, order details, payment via Razorpay, order confirmation emails.
 - **Reviews:** Submit and update product reviews.
 - **Admin Panel:** Manage users, products, categories, orders, and chat limits.
-- **UI:** Modern design with Bootstrap and custom CSS.
-- **AI Assistant:** Chatbot for plant care, product help, and order support.
+- **Modern UI:** Responsive design with Bootstrap and custom CSS.
+- **AI Assistant:** Chatbot for plant care, product help, and order support (text, image, and voice).
 
 ---
 
-## AI Agent Capabilities
+## AI Agent & Workflow
 
+### Capabilities
 - **Conversational Assistant:**
-  - Accessible via chat widget (for logged-in users)
   - Handles plant care queries, product recommendations, order status, and cart management
   - Supports text and image-based queries (can identify plants from images)
   - Multilingual (English/Hindi)
@@ -60,7 +72,78 @@
   - **Order Agent:** Fetch order details, order history, redirect to checkout and my orders links
   - **Research Agent:** Plant care, diseases, watering, sunlight, etc.
   - **Recommendation Agent:** Suggests products based on user needs and catalog
-  
+
+### Simple Workflow Diagram
+
+```mermaid
+flowchart TD
+    User[User Query/Input] --> Supervisor[Supervisor Agent]
+    Supervisor -->|Cart| Cart[Cart Agent]
+    Supervisor -->|Order| Order[Order Agent]
+    Supervisor -->|Recommendation| Recommendation[Recommendation Agent]
+    Supervisor -->|Research| Research[Research Agent]
+    Cart -- Needs Variation? --> Variation[Variation Selection]
+    Variation -- After Selection --> Cart
+    Cart --> Response[Response Node]
+    Order --> Response
+    Recommendation --> Response
+    Research --> Response
+    Response --> UserResp[Final Response to User]
+    User -- Image Uploaded --> PlantID[Plant Identification]
+    PlantID --> Supervisor
+    %% Notes:
+    %% - Supervisor routes to one agent per query
+    %% - Variation selection only for cart
+    %% - Plant identification augments user input if image is uploaded
+```
+
+---
+
+## App Structure
+
+### 1. Accounts
+Handles user authentication, registration, profile management, and user dashboard.
+- Custom user model (`Account`) with email as the username.
+- User registration, login, logout, and email activation.
+- User profile management (`UserProfile`), including address and profile picture.
+- Password reset and change, user dashboard, and context processor for user info.
+
+### 2. Agent
+AI-powered chat assistant for plant care, shopping, and order support.
+- Chat interface for users to interact with the AI assistant.
+- Handles plant identification from images using LLMs.
+- Supports cart, order, product recommendation, and plant care queries.
+- Voice integration (STT/TTS), conversation memory, and rate limiting.
+- Admin tools for chat history and chat limit resets.
+- See [Detailed Agent Workflow Diagram](agent/README.md#detailed-agent-workflow-diagram) for advanced logic.
+
+### 3. Carts
+Manages shopping cart functionality for users (both authenticated and guests).
+- Add, remove, and update products in the cart.
+- Handles product variations (color, size, etc.).
+- Calculates cart totals, tax, and grand total.
+- Checkout process integration and cart item count context processor.
+
+### 4. Category
+Manages product categories for the store.
+- CRUD for product categories (name, slug, description, image).
+- Used for filtering and organizing products in the store.
+- Context processor for category navigation.
+
+### 5. Orders
+Handles order placement, payment, and order history.
+- Place orders from cart items, payment via Razorpay.
+- Stores order details, shipping address, and payment info.
+- Order status tracking, order history, and order detail views.
+- Sends order confirmation emails.
+
+### 6. Store
+Manages products, product variations, reviews, and the main store interface.
+- Product listing, detail, and search.
+- Product variations (color, size, pack), reviews, and gallery images.
+- Plant care information for products.
+- Pagination and price filtering.
+
 ---
 
 ## Tech Stack
@@ -76,31 +159,11 @@ See [`requirements.txt`](requirements.txt) for full dependency list.
 
 ---
 
-## Directory Structure
-
-```
-plantae/
-├── accounts/      # User authentication, registration, profile, dashboard
-├── agent/         # AI/LLM agent logic, chat history, endpoints for chat, TTS, STT
-├── carts/         # Cart and cart item models, add/remove/update cart logic, checkout
-├── category/      # Product categories, category listing, context processors
-├── orders/        # Order placement, payment integration, order history, order details
-├── store/         # Product models, variations, reviews, product gallery, search
-├── templates/     # All HTML templates for pages, emails, includes (navbar, footer, chat widget, etc.)
-├── static/        # CSS, JS, images, fonts, and other static assets
-├── plantae/       # Project settings, URLs, static/media config, main entry points
-├── manage.py      # Django management script
-├── requirements.txt
-└── ...
-```
-
----
-
 ## Getting Started
 
 1. **Clone the repo:**
    ```bash
-   git clone https://github.com/yourusername/plantae.git
+   git clone https://github.com/ayushraj09/plantae.git
    cd plantae
    ```
 2. **Install dependencies:**
@@ -132,39 +195,7 @@ plantae/
 - **Production:** Deployed on an Azure VM
 - **Domain:** [https://plantae.live](https://plantae.live)
 - **Static & Media:** Served via Django static/media settings
-- **Environment:** Python 3.10+, pip, virtualenv recommended
-
----
-
-## Screenshots
-
-![Home Page](docs/screenshots/home.png)
-*Home Page*
-
-
-![Store Page](docs/screenshots/store.png)
-*Store Page*
-
-
-![Product Page](docs/screenshots/product_detail.png)
-*Product Detail Page*
-
-
-![Cart](docs/screenshots/cart.png)
-*Cart Page*
-
-
-![Agent Chat Widget](docs/screenshots/agent_chat.png)
-*Chat Widget*
-
-
-![Admin Panel](docs/screenshots/admin.png)
-*Admin Page*
-
-
-![Order Invoice and Order Retrieval](docs/screenshots/payment_success.png)
-*Order Invoice*
-
+- **Environment:** Python 3.11, pip, virtualenv recommended
 
 ---
 
@@ -177,7 +208,6 @@ This project is licensed under the [MIT License](LICENSE).
 ## Contact
 
 - **Email:** ayush.ttps@gmail.com
-- **Location:** Ranchi, Jharkhand
 
 ---
 
