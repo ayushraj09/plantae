@@ -50,7 +50,7 @@
 
 | Chat Widget | Dashboard |
 |-------------|-----------|
-| ![Chat Widget](docs/screenshots/agent_chat.png | ![Dashboard](docs/screenshots/dashboard.png) |
+| ![Chat Widget](docs/screenshots/agent_chat.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
 ---
 
