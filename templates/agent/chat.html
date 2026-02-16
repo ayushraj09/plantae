@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<!-- Floating Chat Widget -->
+<style>
+#plantae-chat-widget {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  z-index: 9999;
+  font-family: inherit;
+}
+#plantae-chat-toggle {
+  background: #198754;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#plantae-chat-toggle:hover {
+  background: #157347;
+}
+#plantae-chat-box {
+  display: none;
+  flex-direction: column;
+  width: 350px;
+  max-width: 95vw;
+  height: 500px;
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+#plantae-chat-box.open {
+  display: flex;
+}
+#plantae-chat-header {
+  background: #198754;
+  color: #fff;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#plantae-chat-header h5 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+#plantae-chat-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+#plantae-chat-body {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  background: #f8f9fa;
+}
+#plantae-chat-footer {
+  background: #f8f9fa;
+  padding: 10px 12px;
+  border-top: 1px solid #e9ecef;
+}
+#plantae-chat-footer .input-group {
+  display: flex;
+  gap: 6px;
+}
+#plantae-chat-footer input[type="text"] {
+  flex: 1;
+}
+#plantae-clear-btn {
+  background: none;
+  border: none;
+  color: #dc3545;
+  font-size: 1.1rem;
+  margin-left: 8px;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  #plantae-chat-box {
+    width: 98vw;
+    height: 80vh;
+    right: 1vw;
+    bottom: 1vw;
+  }
+}
+</style>
+<div id="plantae-chat-widget">
+  <button id="plantae-chat-toggle" aria-label="Open chat"><i class="fa fa-comments"></i></button>
+  <div id="plantae-chat-box">
+    <div id="plantae-chat-header">
+      <h5>Plantae Assistant</h5>
+      <div>
+        <button id="plantae-clear-btn" title="Clear chat"><i class="fa fa-trash"></i></button>
+        <button id="plantae-chat-close" aria-label="Close chat">&times;</button>
+      </div>
+    </div>
+    <div id="plantae-chat-body"></div>
+    <div id="plantae-chat-footer">
+      <div class="input-group">
+        <input type="text" id="chat-input" class="form-control" placeholder="Type your message..." onkeypress="if(event.key === 'Enter') sendMessage();">
+        <button class="btn btn-secondary" id="voiceBtn" type="button" title="Speak"><span id="voiceIcon">🎤</span></button>
+        <button class="btn btn-success" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CSRF Token for AJAX requests -->
+{% csrf_token %}
+{{ chat_history|json_script:"chat-history-data" }}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+<script>
+let chatHistory = [];
+try {
+  chatHistory = JSON.parse(document.getElementById('chat-history-data').textContent);
+} catch (e) {
+  chatHistory = [];
+}
+const full_name = "{{ name }}";
+
+function getCSRFToken() {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  return csrfToken;
+}
+
+function renderChatHistory() {
+  const chatBox = document.getElementById("plantae-chat-body");
+  if (!chatBox) return;
+  chatBox.innerHTML = "";
+  if (!chatHistory || chatHistory.length === 0) {
+    const greetMsg = `Hey ${full_name}, this is your personal PLANTAE assistant. How can I assist you today?`;
+    chatBox.innerHTML += `
+      <div class="d-flex justify-content-start my-2">
+        <div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${greetMsg}</div>
+      </div>
+    `;
+  } else {
+    for (let i = 0; i < chatHistory.length; i++) {
+      const item = chatHistory[i];
+      const alignment = item.role === "user" ? "end" : "start";
+      const bgClass = item.role === "user" ? "bg-primary text-white" : "bg-light";
+      const messageHtml = `
+        <div class="d-flex justify-content-${alignment} my-2">
+          <div class="${bgClass} rounded-3 p-2 px-3" style="max-width: 70%;">${
+            item.role === "agent" ? DOMPurify.sanitize(marked.parse(item.message)) : item.message
+          }</div>
+        </div>
+      `;
+      chatBox.innerHTML += messageHtml;
+    }
+  }
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function sendMessage() {
+  const input = document.getElementById("chat-input");
+  const message = input.value.trim();
+  if (!message) return;
+  const chatBox = document.getElementById("plantae-chat-body");
+  chatBox.innerHTML += `
+    <div class="d-flex justify-content-end my-2">
+      <div class="bg-primary text-white rounded-3 p-2 px-3" style="max-width: 70%;">${message}</div>
+    </div>
+  `;
+  input.value = "";
+  chatBox.scrollTop = chatBox.scrollHeight;
+  const loadingId = `agent-reply-${Date.now()}`;
+  chatBox.innerHTML += `
+    <div class="d-flex justify-content-start my-2" id="${loadingId}">
+      <div class="bg-light text-muted rounded-3 p-2 px-3" style="max-width: 70%;">
+        <em>Agent is typing...</em>
+      </div>
+    </div>
+  `;
+  chatBox.scrollTop = chatBox.scrollHeight;
+  fetch("/agent/ask/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCSRFToken()
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({ message: message })
+  })
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.json();
+  })
+  .then(data => {
+    const reply = data.response;
+    const replyEl = document.getElementById(loadingId);
+    replyEl.innerHTML = `<div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${DOMPurify.sanitize(marked.parse(reply))}</div>`;
+    chatBox.scrollTop = chatBox.scrollHeight;
+    playTTS(reply);
+  })
+  .catch(error => {
+    const replyEl = document.getElementById(loadingId);
+    replyEl.innerHTML = `
+      <div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">
+        <em>Sorry, there was an error processing your request. Please try again.</em>
+      </div>
+    `;
+    chatBox.scrollTop = chatBox.scrollHeight;
+  });
+}
+
+window.addEventListener("DOMContentLoaded", function() {
+  renderChatHistory();
+});
+
+// Toggle chat widget
+const chatWidget = document.getElementById('plantae-chat-widget');
+const chatBox = document.getElementById('plantae-chat-box');
+const chatToggle = document.getElementById('plantae-chat-toggle');
+const chatClose = document.getElementById('plantae-chat-close');
+chatToggle.addEventListener('click', function() {
+  chatBox.classList.add('open');
+  chatToggle.style.display = 'none';
+  setTimeout(() => {
+    document.getElementById('chat-input').focus();
+  }, 200);
+});
+chatClose.addEventListener('click', function() {
+  chatBox.classList.remove('open');
+  chatToggle.style.display = 'flex';
+});
+
+// Clear chat
+const clearBtn = document.getElementById('plantae-clear-btn');
+clearBtn.addEventListener('click', function() {
+  fetch("/agent/clear_chat/", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCSRFToken()
+    }
+  })
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.json();
+  })
+  .then(data => {
+    if (data.success) {
+      chatHistory = [];
+      renderChatHistory();
+    } else {
+      alert('Failed to clear chat: ' + (data.error || 'Unknown error'));
+    }
+  })
+  .catch(error => {
+    alert('Error clearing chat: ' + error.message);
+  });
+});
+
+// STT - ElevenLabs
+let mediaRecorder, audioChunks = [], silenceTimer = null, audioContext, analyser, microphone, dataArray, silenceDetectionActive = false;
+function startVoiceRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(track => track.stop());
+      if (audioContext && audioContext.state !== "closed") {
+        audioContext.close();
+      }
+      silenceDetectionActive = false;
+      document.getElementById('voiceIcon').textContent = '🎤';
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'audio.webm');
+      fetch('/agent/stt/', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.text) {
+          document.getElementById('chat-input').value = data.text;
+          sendMessage();
+        } else {
+          alert('STT error: ' + (data.error || 'Unknown error'));
+        }
+      });
+    };
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    microphone = audioContext.createMediaStreamSource(stream);
+    analyser = audioContext.createAnalyser();
+    microphone.connect(analyser);
+    dataArray = new Uint8Array(analyser.fftSize);
+    silenceDetectionActive = true;
+    function checkSilence() {
+      if (!silenceDetectionActive) return;
+      analyser.getByteTimeDomainData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        let val = (dataArray[i] - 128) / 128;
+        sum += val * val;
+      }
+      let rms = Math.sqrt(sum / dataArray.length);
+      if (rms < 0.01) {
+        if (!silenceTimer) {
+          silenceTimer = setTimeout(() => {
+            if (mediaRecorder.state === 'recording') {
+              mediaRecorder.stop();
+            }
+            silenceDetectionActive = false;
+            silenceTimer = null;
+          }, 1300);
+        }
+      } else {
+        if (silenceTimer) {
+          clearTimeout(silenceTimer);
+          silenceTimer = null;
+        }
+      }
+      if (mediaRecorder.state === 'recording') {
+        requestAnimationFrame(checkSilence);
+      }
+    }
+    mediaRecorder.start();
+    document.getElementById('voiceIcon').textContent = '🔴';
+    checkSilence();
+  });
+}
+document.getElementById('voiceBtn').addEventListener('click', function() {
+  startVoiceRecording();
+});
+// TTS - ElevenLabs
+function playTTS(text) {
+  const formData = new FormData();
+  formData.append('text', text);
+  fetch('/agent/tts/', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.blob())
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.play();
+  });
+}
+</script>
+
+{% endblock %}

@@ -30,8 +30,9 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG')
+DEBUG = False
 
+# ALLOWED_HOSTS = []
 ALLOWED_HOSTS = ['www.plantae.live', 'plantae.live', '20.193.248.79']
 
 
@@ -103,8 +104,6 @@ DATABASES = {
         },
     }
 }
-
-
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
