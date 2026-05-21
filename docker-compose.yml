@@ -1,0 +1,18 @@
+services:
+
+  web:
+    build: .
+
+    container_name: plantae
+
+    restart: always
+
+    env_file:
+      - .env
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles

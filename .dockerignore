@@ -1,0 +1,10 @@
+venv/
+dj_env/
+.git/
+__pycache__/
+*.pyc
+.env
+media/
+staticfiles/
+.DS_Store
+._*

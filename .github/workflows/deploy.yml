@@ -1,0 +1,28 @@
+name: Deploy Plantae
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@master
+
+        with:
+          host: ${{ secrets.AZURE_HOST }}
+          username: ${{ secrets.AZURE_USER }}
+          key: ${{ secrets.AZURE_SSH_KEY }}
+
+          script: |
+            cd /home/ayushraj/plantae
+            ./deploy.sh
