@@ -1,0 +1,78 @@
+{% load static %}
+<link href="{% static 'css/chat_widget.css' %}" rel="stylesheet" type="text/css"/>
+
+<!-- Floating Chat Widget -->
+<div id="plantae-chat-widget"
+     data-image-idle="{% static 'agent/img/image_idle.png' %}"
+     data-image-active="{% static 'agent/img/image_active.gif' %}"
+     data-send-idle="{% static 'agent/img/send_idle.png' %}"
+     data-send-active="{% static 'agent/img/send_active.gif' %}"
+     data-mic-idle="{% static 'agent/img/mic_idle.png' %}"
+     data-mic-recording="{% static 'agent/img/mic_recording.gif' %}"
+     data-toggle-idle="{% static 'agent/img/toggle_idle.png' %}"
+     data-toggle-active="{% static 'agent/img/toggle_active.gif' %}">
+  <div style="position: relative; width: 80px; height: 80px;">
+    <button id="plantae-chat-toggle" aria-label="Open chat" style="z-index:10002;">
+      <img id="plantae-chat-toggle-icon" src="{% static 'agent/img/toggle_idle.png' %}" alt="Open Chat" style="display: block; margin: auto;" />
+    </button>
+    <div id="plantae-help-tooltip" class="help-tooltip" style="pointer-events: none; z-index:10001;">
+      Need help?
+      <span class="help-tooltip-arrow"></span>
+    </div>
+  </div>
+  <div id="plantae-chat-box">
+    <div id="plantae-chat-header">
+      <h5>Plantae Assistant</h5>
+      <div>
+        <button id="plantae-clear-btn" title="Clear chat"><i class="fa fa-trash"></i></button>
+        <button id="plantae-chat-close" aria-label="Close chat">&times;</button>
+      </div>
+    </div>
+    <div id="plantae-chat-body"></div>
+    <div id="plantae-chat-footer">
+      {% if user.is_authenticated %}
+        <div class="input-group">
+          <textarea id="chat-input" class="form-control" placeholder="Type your message..." onkeypress="if(event.key === 'Enter') sendMessage();"></textarea>
+          <input type="file" id="chat-image" accept="image/*" style="display:none;">
+          <button id="imageBtn" type="button" title="Attach image">
+            <img id="imageIcon" 
+                 src="{% static 'agent/img/image_idle.png' %}" 
+                 alt="Attach" 
+                 style="width: 32px; height: 32px;"
+                 data-idle="{% static 'agent/img/image_idle.png' %}"
+                 data-active="{% static 'agent/img/image_active.gif' %}"/>
+          </button>
+          <button id="voiceBtn" type="button" title="Speak">
+            <img id="voiceIcon" 
+                 src="{% static 'agent/img/mic_idle.png' %}" 
+                 alt="Mic" 
+                 style="width: 40px; height: 36px;"
+                 data-idle="{% static 'agent/img/mic_idle.png' %}"
+                 data-recording="{% static 'agent/img/mic_recording.gif' %}"/>
+          </button>
+          <button id="sendBtn" type="button" title="Send">
+            <img id="sendIcon" 
+                 src="{% static 'agent/img/send_idle.png' %}" 
+                 alt="Send" 
+                 style="width: 32px; height: 32px;"
+                 data-idle="{% static 'agent/img/send_idle.png' %}"
+                 data-active="{% static 'agent/img/send_active.gif' %}"/>
+          </button>
+        </div>
+        <div id="image-preview" style="margin-top:6px;"></div>
+      {% else %}
+        <div class="d-flex justify-content-center align-items-center" style="height: 60px;">
+          <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-success w-100">
+            Login to talk with Plantae Assistant
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- CSRF Token for AJAX requests -->
+{% csrf_token %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+<script src="{% static 'js/chat_widget.js' %}" type="text/javascript"></script>
