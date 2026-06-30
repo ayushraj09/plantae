@@ -264,14 +264,14 @@ def get_checkout_url(user_id: int) -> str:
     """
     Returns the URL for the checkout page.
     """
-    return "You can checkout your order here: https://plantae.live/cart/checkout/"
+    return "You can checkout your order here: https://plantaeai.tech/cart/checkout/"
 
 @tool
 def get_my_orders_url(user_id: int) -> str:
     """
     Returns the URL for the user's orders page.
     """
-    return "You can view all your orders here: https://plantae.live/accounts/my_orders/"
+    return "You can view all your orders here: https://plantaeai.tech/accounts/my_orders/"
 
 @tool
 def get_order_details_by_id(user_id: int, order_id: str) -> str:

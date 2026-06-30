@@ -10,7 +10,7 @@
 
 ## Live Demo
 
-🌐 **Production:** [https://plantae.live](https://plantae.live)
+🌐 **Production:** [https://plantaeai.tech](https://plantaeai.tech)
 
 ---
 
@@ -30,7 +30,7 @@
 
 ## Overview
 
-**Plantae** is a modern, AI-powered e-commerce platform for plant and gardening products. It features a conversational agent for plant care, product recommendations, and order support. The project is built with Django and deployed on an Azure VM at [plantae.live](https://plantae.live).
+**Plantae** is a modern, AI-powered e-commerce platform for plant and gardening products. It features a conversational agent for plant care, product recommendations, and order support. The project is built with Django and deployed on an Azure VM at [plantaeai.tech](https://plantaeai.tech).
 
 ---
 
@@ -206,7 +206,7 @@ See [`requirements.txt`](requirements.txt) for full dependency list.
 ## Deployment
 
 - **Production:** Deployed on an Azure VM
-- **Domain:** [https://plantae.live](https://plantae.live)
+- **Domain:** [https://plantaeai.tech](https://plantaeai.tech)
 - **Static & Media:** Served via Django static/media settings
 - **Environment:** Python 3.11, pip, virtualenv recommended
 
