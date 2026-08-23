@@ -30,10 +30,14 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG')
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = ['www.plantaeai.tech', 'plantaeai.tech', '20.193.248.79']
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://plantaeai.tech',
+    'https://www.plantaeai.tech',
+]
 
 # Application definition
 
