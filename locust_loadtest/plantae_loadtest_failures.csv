@@ -1,0 +1,5 @@
+Method,Name,Error,Occurrences
+GET,Browse: store,RemoteDisconnected('Remote end closed connection without response'),1
+POST,Cart: add item POST,HTTPError('403 Client Error: Forbidden for url: Cart: add item POST'),1
+GET,Browse: product detail,RemoteDisconnected('Remote end closed connection without response'),2
+GET,Cart: store before add,RemoteDisconnected('Remote end closed connection without response'),1

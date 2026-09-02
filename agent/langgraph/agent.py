@@ -24,6 +24,8 @@ from langchain_core.messages.utils import trim_messages, count_tokens_approximat
 
 load_dotenv()
 
+OPENAI_MODEL = "gpt-5.6-luna"
+
 # Create SQLite-based checkpointer for short-term memory
 checkpointer = InMemorySaver()
 
@@ -55,7 +57,7 @@ def identify_plant_from_image(image_file) -> str:
 
         client = OpenAI()
         response = client.responses.create(
-            model="gpt-4.1-nano-2025-04-14",
+            model=OPENAI_MODEL,
             input=[{
                 "role": "system",
                 "content": [
@@ -121,10 +123,10 @@ def pre_model_hook(state):
     return {"llm_input_messages": trimmed_messages}
 
 # --- LLMs and Agents ---
-supervisor_llm = ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.3)
+supervisor_llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0.3)
 web_search = TavilySearch(max_results=2)
 
-cart_agent_llm = ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.7)
+cart_agent_llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0.7)
 cart_agent = create_react_agent(
     model=cart_agent_llm,
     tools=[get_cart_items, add_to_cart, remove_cart_item, list_product_variations],
@@ -146,7 +148,7 @@ cart_agent = create_react_agent(
 )
 
 research_agent = create_react_agent(
-    model=ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.7),
+    model=ChatOpenAI(model=OPENAI_MODEL, temperature=0.7),
     tools=[web_search],
     prompt="""You are a plant research assistant.
     You answer ONLY questions about plant care, watering frequency, soil type, nutrients, sunlight, pests, diseases, and any other plant-related information.
@@ -162,7 +164,7 @@ research_agent = create_react_agent(
 )
 
 order_agent = create_react_agent(
-    model=ChatOpenAI(model="gpt-4.1-nano-2025-04-14", temperature=0.7),
+    model=ChatOpenAI(model=OPENAI_MODEL, temperature=0.7),
     tools=[get_order_details_by_id, get_my_orders_url, get_orders_by_date, get_checkout_url, get_most_recent_order],
     prompt="""You are a helpful plant store assistant. You can ONLY help users with:
     1. Redirecting them to the 'My Orders' page. Use the get_my_orders_url tool. Always share the link in a clear and user-friendly way.

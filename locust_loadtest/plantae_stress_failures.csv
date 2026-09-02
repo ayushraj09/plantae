@@ -1,0 +1,29 @@
+Method,Name,Error,Occurrences
+GET,Asset: media from store,RemoteDisconnected('Remote end closed connection without response'),6
+GET,Account: my orders,RemoteDisconnected('Remote end closed connection without response'),3
+GET,Customer: home,RemoteDisconnected('Remote end closed connection without response'),8
+GET,Browse: plants category,RemoteDisconnected('Remote end closed connection without response'),30
+GET,Browse: home,RemoteDisconnected('Remote end closed connection without response'),20
+GET,Account: dashboard,RemoteDisconnected('Remote end closed connection without response'),6
+GET,Profile: cart store page,RemoteDisconnected('Remote end closed connection without response'),4
+GET,Asset: media from plants category,RemoteDisconnected('Remote end closed connection without response'),1
+GET,Asset: static from plants category,RemoteDisconnected('Remote end closed connection without response'),58
+GET,Asset: static from home,RemoteDisconnected('Remote end closed connection without response'),158
+GET,Browse: store,RemoteDisconnected('Remote end closed connection without response'),30
+GET,Asset: static from store,RemoteDisconnected('Remote end closed connection without response'),92
+POST,Profile: cart add,RemoteDisconnected('Remote end closed connection without response'),3
+GET,Checkout: page,RemoteDisconnected('Remote end closed connection without response'),1
+GET,Asset: media from product detail,RemoteDisconnected('Remote end closed connection without response'),3
+POST,Profile: cart add,HTTPError('403 Client Error: Forbidden for url: Profile: cart add'),4
+GET,Cart: seed from store,RemoteDisconnected('Remote end closed connection without response'),7
+GET,Auth: dashboard check,CatchResponseError('Authenticated dashboard was not reachable.'),10
+GET,Browse: search,RemoteDisconnected('Remote end closed connection without response'),31
+POST,Auth: login POST,CatchResponseError('Login failed. Confirm the test account exists and is active.'),23
+POST,Cart: add item POST,HTTPError('403 Client Error: Forbidden for url: Cart: add item POST'),8
+GET,Browse: product detail,RemoteDisconnected('Remote end closed connection without response'),26
+GET,Profile: cart read,RemoteDisconnected('Remote end closed connection without response'),3
+GET,Customer: store,RemoteDisconnected('Remote end closed connection without response'),4
+POST,Cart: seed item,HTTPError('403 Client Error: Forbidden for url: Cart: seed item'),6
+POST,Cart: add item POST,RemoteDisconnected('Remote end closed connection without response'),1
+GET,Asset: static from product detail,RemoteDisconnected('Remote end closed connection without response'),37
+GET,Cart: store before add,RemoteDisconnected('Remote end closed connection without response'),8
