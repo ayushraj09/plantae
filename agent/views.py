@@ -4,9 +4,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, JsonResponse
 from .models import ChatMessage, ChatImage
 from .langgraph.agent import run_supervisor_agent, clear_user_memory
+from .error_logging import log_agent_error, USER_FACING_ERROR
 import json, os
 from django.views.decorators.http import require_POST
-import logging
 from elevenlabs.client import ElevenLabs
 from dotenv import load_dotenv
 from django.core.cache import cache
@@ -148,8 +148,13 @@ def ask_agent(request):
             return JsonResponse({"response": reply, "interrupt": False})
 
     except Exception as e:
-        logging.exception("Error in ask_agent")
-        return JsonResponse({"response": f"Sorry, there was an error: {str(e)}", "interrupt": False}, status=500)
+        log_agent_error(
+            e,
+            source="ask_agent",
+            user=getattr(request, "user", None) if getattr(request, "user", None) and request.user.is_authenticated else None,
+            user_message=message if isinstance(message, str) else "",
+        )
+        return JsonResponse({"response": USER_FACING_ERROR, "interrupt": False}, status=500)
 
 @csrf_exempt
 @require_POST
@@ -189,9 +194,13 @@ def handle_variation_selection(request):
             })
             
     except Exception as e:
-        print(f"Error handling variation selection: {str(e)}")
+        log_agent_error(
+            e,
+            source="handle_variation_selection",
+            user=request.user if request.user.is_authenticated else None,
+        )
         return JsonResponse({
-            "response": "Sorry, there was an error processing your selection. Please try again.",
+            "response": USER_FACING_ERROR,
             "interrupt": False
         }, status=500)
 
@@ -212,8 +221,9 @@ def clear_chat(request):
             "deleted_images": deleted_images[0] if deleted_images else 0
         })
     except Exception as e:
-        print(f"Error clearing chat: {str(e)}")
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
+        log_agent_error(e, source="clear_chat",
+                        user=request.user if request.user.is_authenticated else None)
+        return JsonResponse({"success": False, "error": "Could not clear chat. Please try again."}, status=500)
     
 @csrf_exempt
 def stt(request):
@@ -233,8 +243,9 @@ def stt(request):
         )
         return JsonResponse({"text": transcription.text})
     except Exception as e:
-        logging.exception("STT error")
-        return JsonResponse({"error": str(e)}, status=500)
+        log_agent_error(e, source="stt",
+                        user=request.user if request.user.is_authenticated else None)
+        return JsonResponse({"error": "Could not transcribe audio. Please try again."}, status=500)
     
 @csrf_exempt
 def tts(request):
@@ -252,8 +263,9 @@ def tts(request):
         )
         return HttpResponse(audio, content_type="audio/mpeg")
     except Exception as e:
-        logging.exception("TTS error")
-        return JsonResponse({"error": str(e)}, status=500)
+        log_agent_error(e, source="tts",
+                        user=request.user if request.user.is_authenticated else None)
+        return JsonResponse({"error": "Could not generate audio. Please try again."}, status=500)
 
 @csrf_exempt
 @login_required(login_url='login')

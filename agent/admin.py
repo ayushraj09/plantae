@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.db.models import Max
-from .models import ChatMessage, ChatSession, ChatImage
+from .models import ChatMessage, ChatSession, ChatImage, AgentError
 
 class UserChatSummaryAdmin(admin.ModelAdmin):
     list_display = ('user', 'concatenated_messages', 'latest_timestamp')
@@ -42,6 +42,23 @@ class UserChatSummaryAdmin(admin.ModelAdmin):
         return result
     full_message_history.short_description = "Full Message History"
     full_message_history.allow_tags = False
+
+@admin.register(AgentError)
+class AgentErrorAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'user', 'source', 'short_error', 'is_resolved')
+    list_filter = ('is_resolved', 'source', 'created_at')
+    search_fields = ('user__email', 'error_message', 'user_message')
+    readonly_fields = ('user', 'source', 'user_message', 'error_message', 'traceback', 'created_at')
+    list_editable = ('is_resolved',)
+    date_hierarchy = 'created_at'
+
+    def short_error(self, obj):
+        return obj.error_message[:80]
+    short_error.short_description = "Error"
+
+    def has_add_permission(self, request):
+        return False
+
 
 admin.site.register(ChatMessage, UserChatSummaryAdmin)
 admin.site.register(ChatSession)

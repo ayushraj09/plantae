@@ -71,8 +71,6 @@ def identify_plant_from_image(image_file) -> str:
                 ],
             }],
             max_output_tokens=1024,
-            temperature=0.1,
-            top_p=1,
         )
         # Use output_text as in the old code
         plant_name = response.output_text.strip()
@@ -123,10 +121,10 @@ def pre_model_hook(state):
     return {"llm_input_messages": trimmed_messages}
 
 # --- LLMs and Agents ---
-supervisor_llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0.3)
+supervisor_llm = ChatOpenAI(model=OPENAI_MODEL)
 web_search = TavilySearch(max_results=2)
 
-cart_agent_llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0.7)
+cart_agent_llm = ChatOpenAI(model=OPENAI_MODEL)
 cart_agent = create_react_agent(
     model=cart_agent_llm,
     tools=[get_cart_items, add_to_cart, remove_cart_item, list_product_variations],
@@ -148,7 +146,7 @@ cart_agent = create_react_agent(
 )
 
 research_agent = create_react_agent(
-    model=ChatOpenAI(model=OPENAI_MODEL, temperature=0.7),
+    model=ChatOpenAI(model=OPENAI_MODEL),
     tools=[web_search],
     prompt="""You are a plant research assistant.
     You answer ONLY questions about plant care, watering frequency, soil type, nutrients, sunlight, pests, diseases, and any other plant-related information.
@@ -164,7 +162,7 @@ research_agent = create_react_agent(
 )
 
 order_agent = create_react_agent(
-    model=ChatOpenAI(model=OPENAI_MODEL, temperature=0.7),
+    model=ChatOpenAI(model=OPENAI_MODEL),
     tools=[get_order_details_by_id, get_my_orders_url, get_orders_by_date, get_checkout_url, get_most_recent_order],
     prompt="""You are a helpful plant store assistant. You can ONLY help users with:
     1. Redirecting them to the 'My Orders' page. Use the get_my_orders_url tool. Always share the link in a clear and user-friendly way.
@@ -629,10 +627,16 @@ def run_supervisor_agent(user_id: int, message: str, thread_id: str = None, imag
         }
         
     except Exception as e:
-        print(f"Exception occurred: {str(e)}")
+        from agent.error_logging import log_agent_error, USER_FACING_ERROR
+        log_agent_error(
+            e,
+            source="run_supervisor_agent",
+            user_id=user_id,
+            user_message=message,
+        )
         return {
             "interrupt": False,
-            "response": f"Sorry, there was an error processing your request: {str(e)}"
+            "response": USER_FACING_ERROR,
         }
 
 # --- Memory Management ---
