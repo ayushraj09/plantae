@@ -121,10 +121,15 @@ def pre_model_hook(state):
     return {"llm_input_messages": trimmed_messages}
 
 # --- LLMs and Agents ---
-supervisor_llm = ChatOpenAI(model=OPENAI_MODEL)
+# gpt-5.6-luna rejects function tools on /v1/chat/completions unless
+# reasoning_effort is "none", and only supports the default temperature (1).
+def make_llm(**kwargs):
+    return ChatOpenAI(model=OPENAI_MODEL, reasoning_effort="none", **kwargs)
+
+supervisor_llm = make_llm()
 web_search = TavilySearch(max_results=2)
 
-cart_agent_llm = ChatOpenAI(model=OPENAI_MODEL)
+cart_agent_llm = make_llm()
 cart_agent = create_react_agent(
     model=cart_agent_llm,
     tools=[get_cart_items, add_to_cart, remove_cart_item, list_product_variations],
@@ -146,7 +151,7 @@ cart_agent = create_react_agent(
 )
 
 research_agent = create_react_agent(
-    model=ChatOpenAI(model=OPENAI_MODEL),
+    model=make_llm(),
     tools=[web_search],
     prompt="""You are a plant research assistant.
     You answer ONLY questions about plant care, watering frequency, soil type, nutrients, sunlight, pests, diseases, and any other plant-related information.
@@ -162,7 +167,7 @@ research_agent = create_react_agent(
 )
 
 order_agent = create_react_agent(
-    model=ChatOpenAI(model=OPENAI_MODEL),
+    model=make_llm(),
     tools=[get_order_details_by_id, get_my_orders_url, get_orders_by_date, get_checkout_url, get_most_recent_order],
     prompt="""You are a helpful plant store assistant. You can ONLY help users with:
     1. Redirecting them to the 'My Orders' page. Use the get_my_orders_url tool. Always share the link in a clear and user-friendly way.
