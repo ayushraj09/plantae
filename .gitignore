@@ -177,8 +177,5 @@ test.ipynb
 
 # End of https://www.toptal.com/developers/gitignore/api/django
 
-# Deployment file
-deploy.sh
-
 # Postgresql database dumps
 *.dump
