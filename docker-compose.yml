@@ -25,7 +25,9 @@ services:
 
     restart: always
 
-    command: python manage.py qcluster
+    # Wait until the web container has applied migrations (the task queue lives in
+    # the database), then start the worker.
+    command: sh -c "until python manage.py migrate --check >/dev/null 2>&1; do echo 'worker: waiting for migrations'; sleep 5; done; exec python manage.py qcluster"
 
     env_file:
       - .env

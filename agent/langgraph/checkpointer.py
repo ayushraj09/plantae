@@ -24,17 +24,13 @@ def _conninfo() -> str:
     )
 
 
-def _build_checkpointer():
-    if os.environ.get('AGENT_CHECKPOINTER', 'postgres').lower() == 'memory':
-        return InMemorySaver()
-
+def _make_pool():
     from psycopg.rows import dict_row
     from psycopg_pool import ConnectionPool
-    from langgraph.checkpoint.postgres import PostgresSaver
 
     # min_size=0 means importing this module never opens a connection, so
     # migrate/collectstatic still work while the DB is unreachable.
-    pool = ConnectionPool(
+    return ConnectionPool(
         conninfo=_conninfo(),
         min_size=0,
         max_size=int(os.environ.get('AGENT_CHECKPOINTER_POOL', '5')),
@@ -43,10 +39,33 @@ def _build_checkpointer():
         kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
         open=True,
     )
-    return PostgresSaver(pool)
+
+
+def _build_checkpointer():
+    if os.environ.get('AGENT_CHECKPOINTER', 'postgres').lower() == 'memory':
+        return InMemorySaver()
+
+    from langgraph.checkpoint.postgres import PostgresSaver
+    return PostgresSaver(_make_pool())
 
 
 checkpointer = _build_checkpointer()
+
+# A forked child (the django-q worker processes on Linux) inherits the pool
+# object but not its background threads, so it would wait forever for a
+# connection. Give each child its own pool. The inherited pool is kept
+# referenced (never closed) so the child can't close the parent's connections.
+_inherited_pools = []
+
+
+def _reset_pool_after_fork():
+    if hasattr(checkpointer, "conn"):
+        _inherited_pools.append(checkpointer.conn)
+        checkpointer.conn = _make_pool()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_pool_after_fork)
 
 
 def delete_thread(thread_id: str) -> None:
