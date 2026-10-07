@@ -76,6 +76,12 @@
                                                 <th class="text-center">₹ {{subtotal}}</th>
                                             </tr>
                                             <tr>
+{% if order.discount %}
+                                                <th colspan="2" class="text-right text-success">Coupon {{ order.coupon_code }}: </th>
+                                                <th class="text-center text-success">− ₹ {{ order.discount }}</th>
+                                            </tr>
+                                            <tr>
+{% endif %}
                                                 <th colspan="2" class="text-right">Shipping and Taxes: </th>
                                                 <th class="text-center">₹ {{order.tax}}</th>
                                             </tr>

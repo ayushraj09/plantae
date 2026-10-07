@@ -4,6 +4,9 @@ from store.models import Product, Variation
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
+from .pricing import SESSION_KEY, check_coupon, find_coupon, price_cart, pricing_context, session_coupon
 # Create your views here.
 
 # This is a private function
@@ -110,31 +113,27 @@ def add_cart(request, product_id):
         return redirect('cart')
 
 
-def cart(request, total=0, quantity=0, cart_items=None):
-    tax = 0
-    grand_total = 0
+def _current_cart_items(request):
+    if request.user.is_authenticated:
+        return CartItem.objects.filter(user=request.user, is_active=True)
     try:
-        if request.user.is_authenticated:
-            cart_items = CartItem.objects.filter(user = request.user, is_active = True)
-        else:
-            cart = Cart.objects.get(cart_id = _cart_id(request))
-            cart_items = CartItem.objects.filter(cart=cart, is_active = True)
-        for cart_item in cart_items:
-            total += (cart_item.product.price * cart_item.quantity)
-            quantity += cart_item.quantity
-        tax = (18 * total)/100
-        grand_total = total + tax
+        cart = Cart.objects.get(cart_id=_cart_id(request))
     except ObjectDoesNotExist:
-        pass
+        return CartItem.objects.none()
+    return CartItem.objects.filter(cart=cart, is_active=True)
 
-    context = {
-        'total': total,
-        'quantity': quantity,
-        'cart_items': cart_items,
-        'tax': tax,
-        'grand_total': grand_total,
-    }
-    return render(request, 'store/cart.html', context)
+
+def _priced_context(request, cart_items):
+    coupon, problem = session_coupon(request, cart_items)
+    if problem:
+        messages.info(request, problem)
+    pricing = price_cart(cart_items, coupon)
+    return {**pricing_context(pricing), 'cart_items': cart_items, 'line_discounts': pricing.line_discounts}
+
+
+def cart(request):
+    cart_items = _current_cart_items(request)
+    return render(request, 'store/cart.html', _priced_context(request, cart_items))
 
 def remove_cart(request, product_id, cart_item_id):
     product = get_object_or_404(Product, id=product_id)
@@ -165,30 +164,40 @@ def remove_cart_item(request, product_id, cart_item_id):
     return redirect('cart')
 
 @login_required(login_url='login')
-def checkout(request, total=0, quantity=0, cart_items=None):
-    tax = 0
-    grand_total = 0
-    try:
-        if request.user.is_authenticated:
-            cart_items = CartItem.objects.filter(user = request.user, is_active = True)
-        else:
-            cart = Cart.objects.get(cart_id = _cart_id(request))
-            cart_items = CartItem.objects.filter(cart=cart, is_active = True)
-        for cart_item in cart_items:
-            total += (cart_item.product.price * cart_item.quantity)
-            quantity += cart_item.quantity
-        tax = (18 * total)/100
-        grand_total = total + tax
-    except ObjectDoesNotExist:
-        pass
-
-    context = {
-        'total': total,
-        'quantity': quantity,
-        'cart_items': cart_items,
-        'tax': tax,
-        'grand_total': grand_total,
-        'checkout_page': True,
-    }
+def checkout(request):
+    cart_items = _current_cart_items(request)
+    context = _priced_context(request, cart_items)
+    context['checkout_page'] = True
     return render(request, 'store/checkout.html', context)
 
+
+def _back(request, fallback='cart'):
+    target = request.POST.get('next')
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+        return redirect(target)
+    return redirect(fallback)
+
+
+@require_POST
+@login_required(login_url='login')
+def apply_coupon(request):
+    """Coupons belong to one account: the lookup is always scoped to request.user."""
+    code = (request.POST.get('coupon_code') or '').strip()
+    coupon = find_coupon(code, request.user)
+    problem = check_coupon(coupon, list(_current_cart_items(request))) if code else "Please enter a coupon code."
+    if problem:
+        request.session.pop(SESSION_KEY, None)
+        messages.error(request, problem)
+    else:
+        request.session[SESSION_KEY] = coupon.code
+        messages.success(request, f"Coupon {coupon.code} applied: {coupon.percent}% off up to "
+                                  f"{coupon.max_units} × {coupon.product.product_name}.")
+    return _back(request)
+
+
+@require_POST
+@login_required(login_url='login')
+def remove_coupon(request):
+    request.session.pop(SESSION_KEY, None)
+    messages.info(request, "Coupon removed.")
+    return _back(request)

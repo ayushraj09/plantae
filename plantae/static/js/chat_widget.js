@@ -1,5 +1,13 @@
 let chatHistory = [];
-let first_name = typeof USER_FIRST_NAME !== 'undefined' ? USER_FIRST_NAME : 'User';
+let first_name = (typeof USER_FIRST_NAME !== 'undefined' && USER_FIRST_NAME) ? USER_FIRST_NAME : 'there';
+
+// --- Human-in-the-loop state ---
+// Highest agent/staff message id already shown; polling fetches newer ones.
+let lastMessageId = 0;
+const renderedMessageIds = new Set();
+let activeTicket = null;
+let pollTimer = null;
+const POLL_INTERVAL_MS = 8000;
 
 // Get icon URLs from data attributes
 function getIconUrl(id, attr) {
@@ -22,6 +30,55 @@ const MIC_RECORDING_SRC = getWidgetData('data-mic-recording');
 const TOGGLE_IDLE_SRC = getWidgetData('data-toggle-idle');
 const TOGGLE_ACTIVE_SRC = getWidgetData('data-toggle-active');
 
+// --- Message rendering helpers (styles in css/chat_widget.css) ---
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text == null ? '' : String(text);
+  return div.innerHTML;
+}
+
+function markdownHtml(text) {
+  return DOMPurify.sanitize(marked.parse(text || ''));
+}
+
+// role: "user" | "agent" | "staff"; innerHtml must already be safe.
+const BUBBLE_CLASSES = {
+  user: "bg-primary text-white rounded-3 p-2 px-3",
+  agent: "bg-light rounded-3 p-2 px-3",
+  staff: "plantae-staff-msg rounded-3 p-2 px-3",
+};
+
+function bubbleHtml(role, innerHtml, rowAttrs) {
+  const side = role === "user" ? "end" : "start";
+  return `<div class="d-flex justify-content-${side} my-2"${rowAttrs ? ' ' + rowAttrs : ''}><div class="${BUBBLE_CLASSES[role]}" style="max-width: 70%;">${innerHtml}</div></div>`;
+}
+
+function agentBubbleHtml(text) {
+  return bubbleHtml('agent', markdownHtml(text));
+}
+
+const TYPING_HTML = '<em class="text-muted">Agent is typing...</em>';
+
+// Quick suggestions shown at the start of a conversation
+const SUGGESTIONS = [
+  { icon: 'fa-shopping-cart', label: "What's in my cart?", text: "What's in my cart?" },
+  { icon: 'fa-truck', label: 'Track my order', text: 'Show my recent orders' },
+  { icon: 'fa-leaf', label: 'Plant care tips', text: 'How often should I water my plants?' },
+  { icon: 'fa-gift', label: 'Recommend a plant', text: 'Recommend an easy indoor plant' },
+  { icon: 'fa-user', label: 'Talk to a human', human: true },
+];
+
+function suggestionsHtml() {
+  const buttons = SUGGESTIONS.map((s, i) =>
+    `<button type="button" class="plantae-suggestion" data-suggestion="${i}"><i class="fa ${s.icon}"></i> ${escapeHtml(s.label)}</button>`
+  ).join('');
+  return `<div class="plantae-suggestions">${buttons}</div>`;
+}
+
+function removeSuggestions() {
+  document.querySelectorAll('.plantae-suggestions').forEach(el => el.remove());
+}
+
 function getCSRFToken() {
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
   return csrfToken;
@@ -37,37 +94,30 @@ function renderChatHistory() {
   if (!chatHistory || chatHistory.length === 0) {
     // Show default greeting when no chat history
     const greetMsg = `Hey ${first_name}, this is your personal PLANTAE assistant. How can I assist you today?`;
-    chatBox.innerHTML += `
-      <div class="d-flex justify-content-start my-2">
-        <div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${greetMsg}</div>
-      </div>
-    `;
+    chatBox.innerHTML += agentBubbleHtml(greetMsg);
   } else {
     // Render chat history (text and images)
     for (let i = 0; i < chatHistory.length; i++) {
       const item = chatHistory[i];
-      const alignment = item.role === "user" ? "end" : "start";
-      const bgClass = item.role === "user" ? "bg-primary text-white" : "bg-light";
-      let messageHtml = "";
-      if (item.type === "image") {
-        messageHtml = `
-          <div class="d-flex justify-content-${alignment} my-2">
-            <div class="${bgClass} rounded-3 p-2 px-3" style="max-width: 70%;">
-              <img src="${item.content}" alt="uploaded" style="max-width:120px; max-height:120px; border-radius:8px;">
-            </div>
-          </div>
-        `;
-      } else {
-        messageHtml = `
-          <div class="d-flex justify-content-${alignment} my-2">
-            <div class="${bgClass} rounded-3 p-2 px-3" style="max-width: 70%;">${
-              item.role === "agent" ? DOMPurify.sanitize(marked.parse(item.content)) : item.content
-            }</div>
-          </div>
-        `;
+      if (item.id) {
+        renderedMessageIds.add(item.id);
+        if (item.role !== "user") lastMessageId = Math.max(lastMessageId, item.id);
       }
-      chatBox.innerHTML += messageHtml;
+      if (item.type === "image") {
+        chatBox.innerHTML += bubbleHtml(item.role === "user" ? "user" : "agent",
+          `<img src="${escapeHtml(item.content)}" alt="uploaded" style="max-width:120px; max-height:120px; border-radius:8px;">`);
+      } else if (item.role === "staff") {
+        chatBox.innerHTML += staffBubbleHtml(item.content, item.author);
+      } else if (item.role === "user") {
+        chatBox.innerHTML += bubbleHtml("user", escapeHtml(item.content));
+      } else {
+        chatBox.innerHTML += agentBubbleHtml(item.content);
+      }
     }
+  }
+  // Only the greeting so far: offer some starting points
+  if (!chatHistory || chatHistory.length <= 1) {
+    chatBox.innerHTML += suggestionsHtml();
   }
   chatBox.scrollTop = chatBox.scrollHeight;
 }
@@ -97,6 +147,7 @@ function fetchAndRenderChatHistory() {
     merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     chatHistory = merged;
     renderChatHistory();
+    setActiveTicket(data.ticket);
   })
   .catch(error => {
     chatHistory = [];
@@ -160,16 +211,17 @@ function sendMessage() {
   }
   
   // Add user's message and image to UI
-  let userMsgHtml = `<div class="d-flex justify-content-end my-2"><div class="bg-primary text-white rounded-3 p-2 px-3" style="max-width: 70%;">`;
+  removeSuggestions();
+  let userInner = '';
   if (selectedImage) {
-    const imgURL = URL.createObjectURL(selectedImage);
-    userMsgHtml += `<img src='${imgURL}' alt='img' style='max-width:80px; max-height:80px; border-radius:8px; margin-bottom:4px; display:block;'>`;
+    userInner += `<img src='${URL.createObjectURL(selectedImage)}' alt='img' style='max-width:80px; max-height:80px; border-radius:8px; margin-bottom:4px; display:block;'>`;
   }
-  userMsgHtml += `${message}</div></div>`;
-  chatBox.innerHTML += userMsgHtml;
+  userInner += escapeHtml(message);
+  chatBox.innerHTML += bubbleHtml('user', userInner);
   
   // Clear input and image
   input.value = "";
+  autoSizeInput(input);
   if (imageInput) {
     imageInput.value = "";
   }
@@ -180,7 +232,7 @@ function sendMessage() {
   
   // Add loading placeholder
   const loadingId = `agent-reply-${Date.now()}`;
-  chatBox.innerHTML += `<div class="d-flex justify-content-start my-2" id="${loadingId}"><div class="bg-light text-muted rounded-3 p-2 px-3" style="max-width: 70%;"><em>Agent is typing...</em></div></div>`;
+  chatBox.innerHTML += bubbleHtml('agent', TYPING_HTML, `id="${loadingId}"`);
   chatBox.scrollTop = chatBox.scrollHeight;
   
   // Send to backend
@@ -208,10 +260,15 @@ function sendMessage() {
     console.log('[ChatWidget] /agent/ask/ data:', data);
     const reply = data.response;
     const replyEl = document.getElementById(loadingId);
-    if (replyEl) {
-      replyEl.innerHTML = `<div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${DOMPurify.sanitize(marked.parse(reply))}</div>`;
+    if (data.handoff || (data.message_id && renderedMessageIds.has(data.message_id))) {
+      // Relayed to the Plantae team (no AI reply), or polling already showed it.
+      if (replyEl) replyEl.remove();
+    } else if (replyEl) {
+      replyEl.innerHTML = `<div class="${BUBBLE_CLASSES.agent}" style="max-width: 70%;">${markdownHtml(reply)}</div>`;
       chatBox.scrollTop = chatBox.scrollHeight;
     }
+    markRendered(data.message_id);
+    if ('ticket' in data) setActiveTicket(data.ticket);
 
     // Handle interrupt for variation selection
     if (data.interrupt && data.interrupt_data && data.interrupt_data.type === "variation_selection") {
@@ -251,10 +308,10 @@ function sendMessage() {
           cards[cards.length - 1].remove();
         }
         // Show chosen variation as a normal chat message
-        let chosenText = `Chosen variation for <b>${product_name}</b>:`;
-        const varList = Object.entries(selections).map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: <b>${v}</b>`).join(', ');
+        let chosenText = `Chosen variation for <b>${escapeHtml(product_name)}</b>:`;
+        const varList = Object.entries(selections).map(([k, v]) => `${escapeHtml(k.charAt(0).toUpperCase() + k.slice(1))}: <b>${escapeHtml(v)}</b>`).join(', ');
         chosenText += ' ' + varList;
-        chatBox.innerHTML += `<div class="d-flex justify-content-start my-2"><div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${chosenText}</div></div>`;
+        chatBox.innerHTML += bubbleHtml('agent', chosenText);
         chatBox.scrollTop = chatBox.scrollHeight;
         // Save chosen variation message to chat history
         fetch("/agent/ask/", {
@@ -278,8 +335,9 @@ function sendMessage() {
         })
         .then(data => {
           console.log('[ChatWidget] /agent/ask/ (resume) data:', data);
+          markRendered(data.message_id);
           // Render the agent's follow-up response
-          chatBox.innerHTML += `<div class="d-flex justify-content-start my-2"><div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;">${DOMPurify.sanitize(marked.parse(data.response))}</div></div>`;
+          chatBox.innerHTML += agentBubbleHtml(data.response);
           chatBox.scrollTop = chatBox.scrollHeight;
         })
         .catch(error => {
@@ -289,7 +347,7 @@ function sendMessage() {
     }
     
     // Only play TTS if last message was from STT
-    if (lastMessageWasSTT && typeof playTTS === 'function') {
+    if (lastMessageWasSTT && reply && typeof playTTS === 'function') {
       playTTS(reply);
       lastMessageWasSTT = false; // Reset flag
     }
@@ -301,7 +359,7 @@ function sendMessage() {
     console.error('[ChatWidget] Error sending message:', error);
     const replyEl = document.getElementById(loadingId);
     if (replyEl) {
-      replyEl.innerHTML = `<div class="bg-light rounded-3 p-2 px-3" style="max-width: 70%;"><em>Sorry, there was an error processing your request. Please try again.</em></div>`;
+      replyEl.innerHTML = `<div class="${BUBBLE_CLASSES.agent}" style="max-width: 70%;"><em>Sorry, there was an error processing your request. Please try again.</em></div>`;
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
@@ -311,6 +369,112 @@ function sendMessage() {
   
   selectedImage = null;
 }
+
+// --- Human-in-the-loop helpers ---
+function staffBubbleHtml(content, author) {
+  const label = author && author !== "Plantae team" ? `${author} · Plantae team` : "Plantae team";
+  return bubbleHtml('staff', `<div class="plantae-staff-name"><i class="fa fa-user"></i> ${escapeHtml(label)}</div>${markdownHtml(content)}`);
+}
+
+function markRendered(id) {
+  if (!id) return;
+  renderedMessageIds.add(id);
+  lastMessageId = Math.max(lastMessageId, id);
+}
+
+function setActiveTicket(ticket) {
+  activeTicket = ticket && ticket.active ? ticket : null;
+  const banner = document.getElementById('plantae-ticket-banner');
+  if (banner) {
+    if (!activeTicket) {
+      banner.style.display = 'none';
+    } else {
+      banner.textContent = activeTicket.mode === 'takeover'
+        ? `You're chatting with the Plantae team (request #${activeTicket.id})`
+        : `Request #${activeTicket.id} is with our team. Their reply will appear here.`;
+      banner.style.display = 'block';
+    }
+  }
+  if (activeTicket && !pollTimer) {
+    pollTimer = setInterval(pollUpdates, POLL_INTERVAL_MS);
+  } else if (!activeTicket && pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+function pollUpdates() {
+  fetch(`/agent/updates/?after_id=${lastMessageId}`, { credentials: "same-origin" })
+    .then(res => res.ok ? res.json() : Promise.reject(res.status))
+    .then(data => {
+      const chatBox = document.getElementById("plantae-chat-body");
+      for (const m of data.messages || []) {
+        if (renderedMessageIds.has(m.id)) continue;
+        markRendered(m.id);
+        if (!chatBox) continue;
+        chatBox.innerHTML += m.role === "staff"
+          ? staffBubbleHtml(m.content, m.author)
+          : agentBubbleHtml(m.content);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+      setActiveTicket(data.ticket);
+    })
+    .catch(error => console.error('[ChatWidget] Poll error:', error));
+}
+
+const humanBtn = document.getElementById('plantae-human-btn');
+if (humanBtn) {
+  humanBtn.addEventListener('click', function() {
+    fetch("/agent/escalate/", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-CSRFToken": getCSRFToken() }
+    })
+    .then(res => res.json())
+    .then(data => {
+      const chatBox = document.getElementById("plantae-chat-body");
+      if (chatBox && data.response && !renderedMessageIds.has(data.message_id)) {
+        chatBox.innerHTML += agentBubbleHtml(data.response);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+      markRendered(data.message_id);
+      setActiveTicket(data.ticket);
+    })
+    .catch(error => console.error('[ChatWidget] Escalate error:', error));
+  });
+}
+
+// Suggestion buttons
+document.addEventListener('click', function(event) {
+  const button = event.target.closest('.plantae-suggestion');
+  if (!button) return;
+  const suggestion = SUGGESTIONS[Number(button.dataset.suggestion)];
+  if (!suggestion) return;
+  removeSuggestions();
+  if (suggestion.human) {
+    const humanButton = document.getElementById('plantae-human-btn');
+    if (humanButton) humanButton.click();
+    return;
+  }
+  const input = document.getElementById('chat-input');
+  if (input) {
+    input.value = suggestion.text;
+    sendMessage();
+  }
+});
+
+// Grow the message box with its content (up to the CSS max-height), then scroll.
+function autoSizeInput(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  const max = parseInt(getComputedStyle(el).maxHeight, 10) || 120;
+  el.style.height = Math.min(el.scrollHeight + 3, max) + 'px';
+  el.style.overflowY = el.scrollHeight + 3 > max ? 'auto' : 'hidden';
+}
+
+document.addEventListener('input', function(event) {
+  if (event.target.id === 'chat-input') autoSizeInput(event.target);
+});
 
 // Fixed: Added Enter key support for chat input
 document.addEventListener('keydown', function(event) {
@@ -413,6 +577,7 @@ if (clearBtn) {
     .then(data => {
       if (data.success) {
         chatHistory = [];
+        renderedMessageIds.clear();
         renderChatHistory();
       } else {
         alert('Failed to clear chat: ' + (data.error || 'Unknown error'));

@@ -23,3 +23,27 @@ class CartItem(models.Model):
 
     def __unicode__(self):
         return self.product
+
+class Coupon(models.Model):
+    """A user-specific discount code for one product (created when staff approve a price match).
+
+    Applies to at most ``max_units`` units of ``product`` in a single order, until
+    ``expires_at``; it is consumed (``used_at``) only once payment succeeds.
+    """
+    code = models.CharField(max_length=40)
+    user = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='coupons')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='coupons')
+    percent = models.PositiveSmallIntegerField()
+    max_units = models.PositiveSmallIntegerField(default=2)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    order = models.ForeignKey('orders.Order', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    ticket = models.ForeignKey('agent.EscalationTicket', on_delete=models.SET_NULL, null=True, blank=True, related_name='coupons')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        constraints = [models.UniqueConstraint(fields=['user', 'code'], name='unique_coupon_code_per_user')]
+
+    def __str__(self):
+        return f"{self.code} ({self.percent}% off {self.product}) for {self.user}"
