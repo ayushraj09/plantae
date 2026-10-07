@@ -15,6 +15,10 @@ logger = logging.getLogger("agent.hitl")
 
 VALID_ACTIONS = {"approve", "edit", "reject", "takeover"}
 
+# Posted whenever a ticket closes, so the customer always knows the AI is back.
+AI_BACK_MESSAGE = ("You're back with the Plantae assistant 🌱 The team has finished with your request. "
+                   "Anything else I can help with?")
+
 
 def _enqueue(func_path: str, *args):
     """Run a task in the django-q worker once the current transaction commits."""
@@ -182,8 +186,8 @@ def end_takeover(ticket_id: int, *, actor=None, source: str, note: str = "") -> 
             ticket.staff_note = note
         ticket.save()
         log_event(ticket, "handback", source, actor, note=note)
-        text = "Thanks for your patience! You're back with the Plantae assistant. Anything else I can help with?"
-        ChatMessage.objects.create(user=ticket.user, role="agent", ticket=ticket, message=text)
+        ChatMessage.objects.create(user=ticket.user, role="agent", ticket=ticket,
+                                   message="Thanks for your patience! " + AI_BACK_MESSAGE)
         _enqueue("agent.hitl.tasks.refresh_slack_card", ticket.pk)
     append_to_chat_memory(ticket.user_id, f"[Support ticket #{ticket.pk} was resolved by the Plantae team. {note}]".strip())
     return ticket
@@ -209,9 +213,15 @@ def post_staff_message(ticket: EscalationTicket, text: str, *, actor=None, sourc
 
 
 def post_ai_reply(ticket: EscalationTicket, text: str) -> ChatMessage:
-    """Final AI message after staff decided an assist ticket."""
-    msg = ChatMessage.objects.create(user=ticket.user, role="agent", ticket=ticket, message=text)
-    log_event(ticket, "resolved", "ai", reply=text)
+    """Final AI message after staff decided an assist ticket, followed by the hand-back notice.
+
+    Both messages are saved before the ticket counts as finished for the chat widget
+    (the "resolved" event), so the widget can't stop polling between them.
+    """
+    with transaction.atomic():
+        msg = ChatMessage.objects.create(user=ticket.user, role="agent", ticket=ticket, message=text)
+        ChatMessage.objects.create(user=ticket.user, role="agent", ticket=ticket, message=AI_BACK_MESSAGE)
+        log_event(ticket, "resolved", "ai", reply=text)
     append_to_chat_memory(ticket.user_id, text)
     return msg
 
@@ -230,4 +240,5 @@ def expire_ticket(ticket: EscalationTicket) -> None:
             message=(f"Sorry for the wait on request #{ticket.pk}. Our team couldn't get to it in chat, "
                      f"so they'll follow up by email at {ticket.user.email}."),
         )
+        ChatMessage.objects.create(user=ticket.user, role="agent", ticket=ticket, message=AI_BACK_MESSAGE)
         _enqueue("agent.hitl.tasks.refresh_slack_card", ticket.pk)
