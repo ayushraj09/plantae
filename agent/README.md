@@ -111,7 +111,10 @@ While a ticket is open, the chat widget polls `/agent/updates/` every 8 seconds 
 - 10 AI messages per user; users with an open ticket are never blocked from reaching staff.
 
 ## Slack Screenshots
-<!-- Add your screenshots to docs/screenshots/ with these file names. -->
-| Ticket card | Live chat in a thread |
-|-------------|-----------------------|
-| ![Slack ticket card](../docs/screenshots/slack_ticket_card.png) | ![Slack takeover thread](../docs/screenshots/slack_takeover_thread.png) |
+**Ticket card**
+
+![Slack ticket card](../docs/screenshots/slack_ticket_card.png)
+
+**Live chat in a thread**
+
+![Slack takeover thread](../docs/screenshots/slack_takeover_thread.png)

@@ -51,13 +51,13 @@
 |------|----------------|
 | ![Cart](docs/screenshots/cart.png) | ![Payment Success](docs/screenshots/payment_success.png) |
 
-| Chat Widget | Dashboard |
-|-------------|-----------|
-| ![Chat Widget](docs/screenshots/agent_chat.png) | ![Dashboard](docs/screenshots/dashboard.png) |
+| Dashboard | Coupon at Checkout |
+|-----------|--------------------|
+| <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="420"> | <img src="docs/screenshots/cart_coupon.png" alt="Coupon at Checkout" width="420"> |
 
-| Chat Suggestions | Coupon at Checkout |
-|------------------|--------------------|
-| ![Chat Suggestions](docs/screenshots/chat_suggestions.png) | ![Coupon at Checkout](docs/screenshots/cart_coupon.png) |
+| Chat Widget | Chat Suggestions |
+|-------------|------------------|
+| ![Chat Widget](docs/screenshots/agent_chat.png) | ![Chat Suggestions](docs/screenshots/chat_suggestions.png) |
 
 Slack screenshots are in the [Human-in-the-Loop](#human-in-the-loop-slack) section.
 
@@ -157,15 +157,21 @@ When a request needs a person, the AI hands it to the Plantae team in a Slack ch
 
 ### Slack screenshots
 
-<!-- Add your screenshots to docs/screenshots/ with these file names. -->
+**Ticket card with the AI proposal and the final price**
 
-| Ticket card (AI proposal) | Edit & approve |
-|---------------------------|----------------|
-| ![Slack ticket card](docs/screenshots/slack_ticket_card.png) | ![Slack edit and approve](docs/screenshots/slack_edit_approve.png) |
+![Slack ticket card](docs/screenshots/slack_ticket_card.png)
 
-| Live chat in a thread | Resolved ticket |
-|-----------------------|-----------------|
-| ![Slack takeover thread](docs/screenshots/slack_takeover_thread.png) | ![Slack resolved ticket](docs/screenshots/slack_resolved.png) |
+**Edit & approve: the final price updates as the discount changes**
+
+<p align="center"><img src="docs/screenshots/slack_edit_approve.png" alt="Slack edit and approve" width="560"></p>
+
+**Resolved ticket**
+
+![Slack resolved ticket](docs/screenshots/slack_resolved.png)
+
+**Live chat with the customer in the ticket thread**
+
+![Slack takeover thread](docs/screenshots/slack_takeover_thread.png)
 
 | Customer view during takeover | Customer view after approval |
 |-------------------------------|------------------------------|
