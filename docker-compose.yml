@@ -15,3 +15,23 @@ services:
     volumes:
       - ./media:/app/media
       - ./static:/app/static
+
+  # Background worker for escalations (Slack/email notifications, resuming the
+  # escalation graph after staff decide, SLA reminders). Same image as web.
+  worker:
+    build: .
+
+    container_name: plantae-worker
+
+    restart: always
+
+    command: python manage.py qcluster
+
+    env_file:
+      - .env
+
+    depends_on:
+      - web
+
+    volumes:
+      - ./media:/app/media

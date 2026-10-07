@@ -208,11 +208,17 @@ def resetpassword(request):
         return render(request, 'accounts/resetpassword.html')
     
 
+def get_or_create_profile(user):
+    """Accounts created outside registration (createsuperuser, admin) have no profile yet."""
+    profile, _ = UserProfile.objects.get_or_create(user=user, defaults={'profile_picture': 'default/default-user.png'})
+    return profile
+
+
 @login_required(login_url = 'login')
 def dashboard(request):
     orders = Order.objects.order_by('-created_at').filter(user_id = request.user.id, is_ordered=True)
     orders_count = orders.count()
-    userprofile = UserProfile.objects.get(user_id = request.user)
+    userprofile = get_or_create_profile(request.user)
     context={
         'orders_count': orders_count,
         'userprofile': userprofile,
@@ -231,7 +237,7 @@ def my_orders(request):
 
 @login_required(login_url = 'login')
 def edit_profile(request):
-    userprofile = get_object_or_404(UserProfile, user = request.user)
+    userprofile = get_or_create_profile(request.user)
     if request.method == 'POST':
         user_form = UserForm(request.POST, instance=request.user) #using instance to update profile, not to make another one
         profile_form = UserProfileForm(request.POST, request.FILES, instance=userprofile)

@@ -21,10 +21,13 @@ def store(request, category_slug=None):
     max_price = request.GET.get('max_price')
     min_price = int(min_price) if min_price and min_price.isdigit() else GLOBAL_MIN_PRICE
     max_price = int(max_price) if max_price and max_price.isdigit() else GLOBAL_MAX_PRICE
+    # A reversed range (min above max) is treated as the same range the right way round.
+    if min_price > max_price:
+        min_price, max_price = max_price, min_price
 
     if category_slug != None:
         categories = get_object_or_404(Category, slug=category_slug)
-        products = Product.objects.filter(category=categories, is_available=True)
+        products = Product.objects.filter(category=categories, is_available=True).order_by('id')
         
     else:
         products = Product.objects.all().filter(is_available=True).order_by('id')
@@ -35,11 +38,15 @@ def store(request, category_slug=None):
     page = request.GET.get('page')
     paged_products = paginator.get_page(page)
     product_count = products.count()
+    # Current filters without the page number, so pagination links keep them.
+    params = request.GET.copy()
+    params.pop('page', None)
     context = {
         'products': paged_products,
         'product_count': product_count,
         'min_price': min_price,
         'max_price': max_price,
+        'filter_query': params.urlencode(),
     }
     return render(request, 'store/store.html', context)
 

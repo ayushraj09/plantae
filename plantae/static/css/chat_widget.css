@@ -62,14 +62,15 @@
     border-radius: 16px;
     border: 1.5px solid #d1e7dd;
     box-shadow: 0 1px 4px rgba(25,135,84,0.07);
-    padding: 16px 18px;
+    padding: 10px 18px;
     font-size: 1rem;
     outline: none;
     transition: border 0.2s, box-shadow 0.2s;
-    min-height: 30px;
-    max-height: 60px;
+    min-height: 46px;
+    max-height: 120px; /* grows with the text (see chat_widget.js), ~4 lines */
+    height: 46px;
     resize: none;
-    overflow-y: auto;
+    overflow-y: hidden;
     overflow-x: hidden;
     line-height: 1.5;
   }
@@ -239,3 +240,52 @@
   #plantae-chat-toggle.open + .help-tooltip {
     opacity: 0;
   }
+/* --- Human-in-the-loop additions --- */
+#plantae-human-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+#plantae-ticket-banner {
+  background: #fff3cd;
+  color: #664d03;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  border-bottom: 1px solid #ffe69c;
+}
+.plantae-staff-msg {
+  background: #d1e7dd;
+  color: #0f5132;
+  border-left: 3px solid #198754;
+}
+.plantae-staff-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+/* Starting suggestions */
+.plantae-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.plantae-suggestion {
+  background: #fff;
+  border: 1.5px solid #198754;
+  color: #198754;
+  border-radius: 16px;
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.plantae-suggestion:hover,
+.plantae-suggestion:focus-visible {
+  background: #d1e7dd;
+  color: #0f5132;
+  outline: none;
+}

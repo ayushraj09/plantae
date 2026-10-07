@@ -39,6 +39,8 @@ class Order(models.Model):
     order_note = models.CharField(max_length=100, blank=True)
     order_total = models.FloatField()
     tax = models.FloatField()
+    discount = models.FloatField(default=0)
+    coupon_code = models.CharField(max_length=40, blank=True)
     status = models.CharField(max_length=10, choices=STATUS, default='Accepted')
     ip = models.CharField(blank=True, max_length=20)
     is_ordered =  models.BooleanField(default=False)

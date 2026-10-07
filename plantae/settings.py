@@ -33,11 +33,17 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = ['www.plantaeai.tech', 'plantaeai.tech', '20.193.248.79']
+if DEBUG:
+    ALLOWED_HOSTS += ['localhost', '127.0.0.1']
+# Extra hosts, e.g. a temporary tunnel used to receive Slack webhooks in development.
+EXTRA_ALLOWED_HOSTS = [h.strip() for h in os.getenv('EXTRA_ALLOWED_HOSTS', '').split(',') if h.strip()]
+ALLOWED_HOSTS += EXTRA_ALLOWED_HOSTS
 
 CSRF_TRUSTED_ORIGINS = [
     'https://plantaeai.tech',
     'https://www.plantaeai.tech',
 ]
+CSRF_TRUSTED_ORIGINS += [f'https://{h}' for h in EXTRA_ALLOWED_HOSTS]
 
 # Application definition
 
@@ -54,6 +60,7 @@ INSTALLED_APPS = [
     "carts",
     "orders",
     "agent",
+    "django_q",
 ]
 
 MIDDLEWARE = [
@@ -81,6 +88,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "category.context_processors.menu_links",
                 "carts.context_processors.counter",
+                "agent.context_processors.chat_widget",
                 "accounts.context_processors.user_context"
             ],
         },
@@ -103,7 +111,7 @@ DATABASES = {
         'HOST': os.environ.get('DB_HOST'),
         'PORT': os.environ.get('DB_PORT', '5432'),
         'OPTIONS': {
-            'sslmode': 'require',
+            'sslmode': os.environ.get('DB_SSLMODE', 'require'),
         },
     }
 }
@@ -171,6 +179,36 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID')
 RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET')
 
+# --- Human-in-the-loop (agent escalations) ---
+# Slack is optional: when SLACK_BOT_TOKEN is unset, tickets are handled from the
+# Django admin and staff are notified by email only.
+SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN', '')
+SLACK_SIGNING_SECRET = os.getenv('SLACK_SIGNING_SECRET', '')
+SLACK_ESCALATION_CHANNEL = os.getenv('SLACK_ESCALATION_CHANNEL', '')
+HITL_STAFF_EMAILS = [e.strip() for e in os.getenv('HITL_STAFF_EMAILS', '').split(',') if e.strip()]
+HITL_SLA_MINUTES = int(os.getenv('HITL_SLA_MINUTES', '30'))
+HITL_EXPIRE_HOURS = int(os.getenv('HITL_EXPIRE_HOURS', '24'))
+# Bump (or set via env on deploy) whenever the chat widget's CSS/JS change, so
+# browsers fetch the new files instead of mixing cached old ones with new markup.
+CHAT_WIDGET_VERSION = os.getenv('CHAT_WIDGET_VERSION', '2026.10.08.1')
+# Approved price matches become a user-specific coupon for the product.
+PRICE_MATCH_MAX_UNITS = int(os.getenv('PRICE_MATCH_MAX_UNITS', '2'))
+PRICE_MATCH_VALID_DAYS = int(os.getenv('PRICE_MATCH_VALID_DAYS', '7'))
+# Base URL used to link to tickets from Slack/email.
+SITE_URL = os.getenv('SITE_URL', 'https://plantaeai.tech')
+
+# Background worker (python manage.py qcluster). Uses the existing Postgres DB
+# as the queue so no Redis is required.
+Q_CLUSTER = {
+    'name': 'plantae',
+    'orm': 'default',
+    'workers': int(os.getenv('Q_WORKERS', '2')),
+    'timeout': 120,
+    'retry': 180,
+    'max_attempts': 2,
+    'catch_up': False,
+}
+
 # Logging — agent failures are also persisted to the AgentError model (see
 # agent/error_logging.py) and surfaced in the admin panel.
 LOGGING = {
@@ -192,6 +230,11 @@ LOGGING = {
         'agent.errors': {
             'handlers': ['console'],
             'level': 'ERROR',
+            'propagate': False,
+        },
+        'agent.hitl': {
+            'handlers': ['console'],
+            'level': 'INFO',
             'propagate': False,
         },
     },

@@ -21,6 +21,8 @@ distro==1.9.0
 Django==4.2.21
 django-admin-thumbnails==0.2.9
 django-allauth==65.9.0
+django-picklefield==3.4.0
+django-q2==1.8.0
 django-crispy-forms==2.4
 dotenv==0.9.9
 elevenlabs==2.6.0
@@ -50,6 +52,7 @@ langchain-text-splitters==0.3.8
 langchain-together==0.3.0
 langgraph==0.5.0
 langgraph-checkpoint==2.1.0
+langgraph-checkpoint-postgres==2.0.24
 langgraph-prebuilt==0.5.1
 langgraph-sdk==0.1.72
 langgraph-supervisor==0.0.27
@@ -72,6 +75,9 @@ platformdirs==4.3.8
 prompt_toolkit==3.0.51
 propcache==0.3.2
 psutil==7.0.0
+psycopg==3.3.6
+psycopg-binary==3.3.6
+psycopg-pool==3.3.3
 psycopg2-binary==2.9.10
 ptyprocess==0.7.0
 pure_eval==0.2.3
@@ -93,6 +99,7 @@ requests-toolbelt==1.0.0
 rich==13.9.4
 shellingham==1.5.4
 six==1.17.0
+slack_sdk==3.45.0
 sniffio==1.3.1
 SQLAlchemy==2.0.41
 sqlparse==0.5.3

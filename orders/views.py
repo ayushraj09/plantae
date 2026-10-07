@@ -1,5 +1,8 @@
 from django.shortcuts import render, redirect
-from carts.models import CartItem
+from carts.models import CartItem, Coupon
+from carts.pricing import SESSION_KEY, price_cart, pricing_context, session_coupon
+from django.db import transaction
+from django.utils import timezone
 from .forms import OrderForm
 import datetime
 from .models import Order, OrderProduct, Payment
@@ -26,14 +29,16 @@ def payments(request):
     if not cart_items.exists():
         return redirect('store')
 
-    total = 0
-    quantity = 0
-    for item in cart_items:
-        total += item.product.price * item.quantity
-        quantity += item.quantity
-
-    tax = (18 * total) / 100
-    grand_total = total + tax
+    coupon, problem = session_coupon(request, cart_items)
+    if problem:
+        messages.info(request, problem)
+    pricing = price_cart(cart_items, coupon)
+    grand_total = pricing.grand_total
+    # The order must match what is charged (the coupon may have become invalid meanwhile).
+    order_obj.order_total = float(pricing.grand_total)
+    order_obj.tax = float(pricing.tax)
+    order_obj.discount = float(pricing.discount)
+    order_obj.coupon_code = coupon.code if coupon else ''
 
     client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
     DATA = {
@@ -52,9 +57,8 @@ def payments(request):
         'name': 'PLANTAE',
         'order': order_obj,
         'cart_items': cart_items,
-        'total': total,
-        'tax': tax,
-        'grand_total': grand_total,
+        **pricing_context(pricing),
+        'line_discounts': pricing.line_discounts,
         'checkout_page': True,
     }
 
@@ -72,12 +76,8 @@ def place_order(request, total=0, quantity=0):
         form = OrderForm(request.POST)
         if form.is_valid():
             try:
-                for item in cart_items:
-                    total += item.product.price * item.quantity
-                    quantity += item.quantity
-
-                tax = (18 * total) / 100
-                grand_total = total + tax
+                coupon, _problem = session_coupon(request, cart_items)
+                pricing = price_cart(cart_items, coupon)
 
                 order = Order()
                 order.user = current_user
@@ -92,8 +92,10 @@ def place_order(request, total=0, quantity=0):
                 order.state = form.cleaned_data['state']
                 order.country = form.cleaned_data['country']
                 order.order_note = form.cleaned_data['order_note']
-                order.order_total = grand_total
-                order.tax = tax
+                order.order_total = float(pricing.grand_total)
+                order.tax = float(pricing.tax)
+                order.discount = float(pricing.discount)
+                order.coupon_code = coupon.code if coupon else ''
                 order.ip = request.META.get('REMOTE_ADDR')
                 order.save()
 
@@ -149,6 +151,17 @@ def razorpay_callback(request):
 
             # Move cart items to OrderProducts
             cart_items = CartItem.objects.filter(user=request.user)
+            coupon = None
+            if order.coupon_code:
+                with transaction.atomic():
+                    # Lock the coupon so two payments can't both consume it.
+                    coupon = (Coupon.objects.select_for_update()
+                              .filter(user=request.user, code__iexact=order.coupon_code, used_at__isnull=True).first())
+                    if coupon:
+                        coupon.used_at = timezone.now()
+                        coupon.order = order
+                        coupon.save(update_fields=['used_at', 'order'])
+            request.session.pop(SESSION_KEY, None)
             for item in cart_items:
                 orderproduct = OrderProduct()
                 orderproduct.order_id = order.id
@@ -156,7 +169,7 @@ def razorpay_callback(request):
                 orderproduct.user_id = request.user.id
                 orderproduct.product_id = item.product_id
                 orderproduct.quantity = item.quantity
-                orderproduct.product_price = item.product.price
+                orderproduct.product_price = item.product.price  # list price; discount is on the order
                 orderproduct.ordered = True
                 orderproduct.save()
 

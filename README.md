@@ -19,6 +19,8 @@
 - [Screenshots](#screenshots)
 - [Features](#features)
 - [AI Agent & Workflow](#ai-agent--workflow)
+- [Human-in-the-Loop (Slack)](#human-in-the-loop-slack)
+- [Price-Match Coupons](#price-match-coupons)
 - [App Structure](#app-structure)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
@@ -53,6 +55,12 @@
 |-------------|-----------|
 | ![Chat Widget](docs/screenshots/agent_chat.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
+| Chat Suggestions | Coupon at Checkout |
+|------------------|--------------------|
+| ![Chat Suggestions](docs/screenshots/chat_suggestions.png) | ![Coupon at Checkout](docs/screenshots/cart_coupon.png) |
+
+Slack screenshots are in the [Human-in-the-Loop](#human-in-the-loop-slack) section.
+
 ---
 
 ## Features
@@ -60,12 +68,14 @@
 - **User Authentication:** Register, login, logout, email verification, password reset, profile management.
 - **Product Catalog:** Browse, search, and filter products by category, price, and keyword.
 - **Product Details:** Detailed product pages with images, plant care info, reviews, and variations.
-- **Cart & Checkout:** Add/remove products, manage variations, view cart, checkout with tax calculation.
+- **Cart & Checkout:** Add/remove products, manage variations, view cart, apply user-specific coupon codes, checkout with tax calculation.
 - **Order Management:** Place orders, view order history, order details, payment via Razorpay, order confirmation emails.
 - **Reviews:** Submit and update product reviews.
 - **Admin Panel:** Manage users, products, categories, orders, and chat limits.
 - **Modern UI:** Responsive design with Bootstrap and custom CSS.
-- **AI Assistant:** Chatbot for plant care, product help, and order support (text, image, and voice).
+- **AI Assistant:** Chatbot for plant care, product help, and order support (text, image, and voice), with starter suggestions in the chat.
+- **Human-in-the-Loop:** Requests the AI can't handle (price matches, cancellations, refunds, damaged items, bulk orders, complaints) are escalated to the team on **Slack**, where staff approve, edit, reject, or take over the chat live.
+- **Price-Match Coupons:** An approved price match creates a coupon code that only works for that customer and product.
 
 ---
 
@@ -73,18 +83,22 @@
 
 ### Capabilities
 - **Conversational Assistant:**
-  - Handles plant care queries, product recommendations, order status, and cart management
+  - Handles plant care queries, product recommendations, order status, and cart management (including quantities, e.g. "add 2 marigolds")
   - Supports text and image-based queries (can identify plants from images)
-  - Multilingual (English/Hindi)
-  - Rate-limited (max 10 messages per user)
+  - Understands casual and mixed-language messages (English/Hindi/Hinglish, typos)
+  - Politely declines off-topic requests and attempts to override its instructions
+  - Remembers the conversation across sessions (stored in PostgreSQL)
+  - Rate-limited (max 10 AI messages per user; messages to staff during a takeover don't count)
 - **Voice Features:**
   - Text-to-Speech (TTS) and Speech-to-Text (STT) using ElevenLabs
 - **Agent Modules:**
-  - **Supervisor Agent:** Routes queries to the correct sub-agent(s) using LLM-based classification
+  - **Supervisor Agent:** Routes each message to one sub-agent using LLM-based classification (with recent conversation as context)
   - **Cart Agent:** Add/view/remove items in cart
   - **Order Agent:** Fetch order details, order history, redirect to checkout and my orders links
   - **Research Agent:** Plant care, diseases, watering, sunlight, etc.
   - **Recommendation Agent:** Suggests products based on user needs and catalog
+  - **General Agent:** Greetings, thanks, and questions about the conversation itself ("what did the team say?")
+  - **Escalation Intake:** Collects the details staff need and hands the request to a human (see below)
 
 ### Simple Workflow Diagram
 
@@ -95,12 +109,17 @@ flowchart TD
     Supervisor -->|Order| Order[Order Agent]
     Supervisor -->|Recommendation| Recommendation[Recommendation Agent]
     Supervisor -->|Research| Research[Research Agent]
+    Supervisor -->|Small talk / follow-up| General[General Agent]
+    Supervisor -->|Needs a human| Intake[Escalation Intake]
     Cart -- Needs Variation? --> Variation[Variation Selection]
     Variation -- After Selection --> Cart
+    Intake -->|Ticket| Slack[(Slack: Plantae team)]
     Cart --> Response[Response Node]
     Order --> Response
     Recommendation --> Response
     Research --> Response
+    General --> Response
+    Intake --> Response
     Response --> UserResp[Final Response to User]
     User -- Image Uploaded --> PlantID[Plant Identification]
     PlantID --> Supervisor
@@ -109,6 +128,65 @@ flowchart TD
     %% - Variation selection only for cart
     %% - Plant identification augments user input if image is uploaded
 ```
+
+See [agent/README.md](agent/README.md) for the detailed agent and escalation architecture.
+
+---
+
+## Human-in-the-Loop (Slack)
+
+When a request needs a person, the AI hands it to the Plantae team in a Slack channel instead of guessing.
+
+### When the AI escalates
+- **Price match / better deal**, **order cancellation**, **delivery issues**, **payment issues**: the AI collects the details (product, price, order number, ...), checks them against the database, and **proposes an action** for staff to approve.
+- **Damaged or wrong item**, **bulk orders**, **complaints**, or when the customer **asks for a human** (or is clearly upset): the conversation is **handed over** so staff can chat with the customer directly.
+- Customers can also use the **👤 Talk to a human** button or suggestion in the chat at any time.
+
+### Two ways staff help
+
+**1. Approve the AI's proposal (staff → AI).** A ticket card is posted to Slack with a summary, the customer's details, facts from the database, and the AI's proposal. Staff click:
+
+| Button | What happens |
+|---|---|
+| **Approve** | The action is carried out (e.g. the order is cancelled) and the AI tells the customer. |
+| **Edit & approve** | Staff change the proposal (e.g. 15% → 10%) and add a note; the AI tells the customer the edited outcome. |
+| **Reject** | Staff give a reason; the AI explains it to the customer. Nothing is changed. |
+| **Take over chat** | Switches to a live conversation (below). |
+
+**2. Talk to the customer (staff → customer).** The AI goes quiet. The customer's messages appear in the ticket's Slack thread, and staff replies in that thread appear in the customer's chat (labelled with the staff member's name). **Hand back to AI** closes the ticket; the AI then remembers what staff said.
+
+### Slack screenshots
+
+<!-- Add your screenshots to docs/screenshots/ with these file names. -->
+
+| Ticket card (AI proposal) | Edit & approve |
+|---------------------------|----------------|
+| ![Slack ticket card](docs/screenshots/slack_ticket_card.png) | ![Slack edit and approve](docs/screenshots/slack_edit_approve.png) |
+
+| Live chat in a thread | Resolved ticket |
+|-----------------------|-----------------|
+| ![Slack takeover thread](docs/screenshots/slack_takeover_thread.png) | ![Slack resolved ticket](docs/screenshots/slack_resolved.png) |
+
+| Customer view during takeover | Customer view after approval |
+|-------------------------------|------------------------------|
+| ![Chat during takeover](docs/screenshots/chat_takeover.png) | ![Chat after approval](docs/screenshots/chat_approved.png) |
+
+### Reliability
+- Tickets wait in Slack until staff act; a reminder is posted if a ticket waits longer than `HITL_SLA_MINUTES`, and after `HITL_EXPIRE_HOURS` the customer is told the team will follow up by email.
+- If Slack is not configured, staff are emailed and can decide everything from the **Django admin** (Escalation Tickets), which has the same Approve / Edit / Reject / Take over / Reply actions.
+- Every action is recorded on the ticket (who, when, what), visible in the admin.
+
+---
+
+## Price-Match Coupons
+
+When staff approve a price match, the customer gets a coupon code such as **`ROSE10`**:
+
+- **Only for that customer:** codes are looked up together with the logged-in account, so another customer entering `ROSE10` gets "not valid for your account".
+- **Only for that product**, for **up to 2 units** per order (`PRICE_MATCH_MAX_UNITS`).
+- **Valid for 7 days** (`PRICE_MATCH_VALID_DAYS`) and **single use**: it is marked used only after Razorpay confirms the payment.
+- The customer enters it in the **coupon box on the cart or checkout page**; the discount is shown before tax (18% GST is charged on the discounted amount) and saved on the order.
+- Coupons are listed in the admin (owner, product, %, expiry, when used, order, and the ticket that created it).
 
 ---
 
@@ -126,15 +204,17 @@ AI-powered chat assistant for plant care, shopping, and order support.
 - Chat interface for users to interact with the AI assistant.
 - Handles plant identification from images using LLMs.
 - Supports cart, order, product recommendation, and plant care queries.
-- Voice integration (STT/TTS), conversation memory, and rate limiting.
-- Admin tools for chat history and chat limit resets.
+- Voice integration (STT/TTS), conversation memory (PostgreSQL), and rate limiting.
+- Human-in-the-loop escalations to Slack, with a background worker for notifications and follow-ups.
+- Admin tools for chat history, agent errors, and escalation tickets.
 - See [Detailed Agent Workflow Diagram](agent/README.md#detailed-agent-workflow-diagram) for advanced logic.
 
 ### 3. Carts
 Manages shopping cart functionality for users (both authenticated and guests).
 - Add, remove, and update products in the cart.
 - Handles product variations (color, size, etc.).
-- Calculates cart totals, tax, and grand total.
+- Calculates cart totals, coupon discount, tax, and grand total in one place (`carts/pricing.py`).
+- User-specific coupon codes (`Coupon`), created from approved price matches.
 - Checkout process integration and cart item count context processor.
 
 ### 4. Category
@@ -146,7 +226,7 @@ Manages product categories for the store.
 ### 5. Orders
 Handles order placement, payment, and order history.
 - Place orders from cart items, payment via Razorpay.
-- Stores order details, shipping address, and payment info.
+- Stores order details, shipping address, payment info, and any coupon discount.
 - Order status tracking, order history, and order detail views.
 - Sends order confirmation emails.
 
@@ -163,7 +243,8 @@ Manages products, product variations, reviews, and the main store interface.
 
 - **Backend:** Django 4.2 (Python)
 - **Frontend:** Django Templates, Bootstrap, jQuery, FontAwesome
-- **AI/Agent:** LangChain, OpenAI, LangGraph, ElevenLabs (TTS/STT)
+- **AI/Agent:** LangChain, OpenAI, LangGraph (PostgreSQL checkpointer), ElevenLabs (TTS/STT)
+- **Human-in-the-Loop:** Slack (Block Kit buttons, threads, signed webhooks), django-q2 background worker
 - **LLM:** OpenAI's gpt-5.6-luna
 - **Database:** Azure Database for PostgreSQL Flexible Server
 - **Payments:** Razorpay
@@ -186,18 +267,22 @@ See [`requirements.txt`](requirements.txt) for full dependency list.
    ```
 3. **Set up environment variables:**
    - Copy `.env-sample` to `.env` and fill in your secrets.
-4. **Run migrations:**
+4. **Run migrations and set up agent memory tables:**
    ```bash
    python manage.py migrate
+   python manage.py setup_checkpointer
    ```
 5. **Create superuser:**
    ```bash
    python manage.py createsuperuser
    ```
-6. **Run the server:**
+6. **Run the server and the background worker** (two terminals):
    ```bash
    python manage.py runserver
+   python manage.py qcluster
    ```
+   The worker posts tickets to Slack, writes the AI's reply after staff decide, and sends reminders.
+   Slack is optional for local development; without it, tickets are handled from the admin.
 7. **Access:**
    - Website: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
    - Admin: [http://127.0.0.1:8000/admin/](http://127.0.0.1:8000/admin/)
@@ -287,10 +372,33 @@ Raw Locust result files are in [`locust_loadtest/`](locust_loadtest/) (`plantae_
 
 ## Deployment
 
-- **Production:** Deployed on an Azure VM
+- **Production:** Azure VM with Docker Compose, deployed by GitHub Actions on every push to `main` (`deploy.sh`).
 - **Domain:** [https://plantaeai.tech](https://plantaeai.tech)
-- **Static & Media:** Served via Django static/media settings
-- **Environment:** Python 3.11, pip, virtualenv recommended
+- **Containers:**
+  - `web` (`plantae`): runs migrations, `setup_checkpointer`, `collectstatic`, then Gunicorn.
+  - `worker` (`plantae-worker`): `python manage.py qcluster` for Slack notifications, AI replies after staff decisions, and SLA reminders.
+- **Static & Media:** Collected into `static/` and served by Apache; the chat widget's CSS/JS URLs carry `CHAT_WIDGET_VERSION` so browsers fetch new versions after a deploy.
+- **Database:** Azure Database for PostgreSQL (also stores agent memory and the background task queue).
+
+### Configuration
+
+Copy `.env-sample` to `.env`. Settings added for the agent and human-in-the-loop:
+
+| Variable | Purpose |
+|---|---|
+| `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_ESCALATION_CHANNEL` | Slack app credentials and the channel for tickets |
+| `HITL_STAFF_EMAILS` | Email fallback and overdue reminders (comma-separated) |
+| `HITL_SLA_MINUTES`, `HITL_EXPIRE_HOURS` | When to remind staff, and when to close unanswered tickets |
+| `PRICE_MATCH_MAX_UNITS`, `PRICE_MATCH_VALID_DAYS` | Coupon limits (default 2 units, 7 days) |
+| `SITE_URL` | Public URL used in links from Slack/email |
+| `CHAT_WIDGET_VERSION` | Bump when the chat widget's CSS/JS change |
+| `DB_SSLMODE` | Database SSL mode (default `require`) |
+
+### Slack app setup
+1. Create a Slack app with bot scopes `chat:write`, `users:read`, `users:read.email`, `channels:history` (and `groups:history` for a private channel), install it, and invite it to the escalation channel.
+2. **Interactivity** request URL: `https://<your-domain>/agent/slack/interactions/`
+3. **Event Subscriptions** request URL: `https://<your-domain>/agent/slack/events/`, subscribed to `message.channels` (or `message.groups`).
+4. Staff are matched to site accounts by email; give their accounts `is_staff` so decisions are recorded under their name.
 
 ---
 

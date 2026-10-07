@@ -5,6 +5,47 @@ from langchain_core.tools import tool
 from category.models import Category
 from orders.models import Order, OrderProduct
 from dateutil import parser as date_parser
+from django.conf import settings
+import difflib
+import re
+
+MAX_CART_QUANTITY = 50
+
+
+def find_product(name: str):
+    """Match a user-supplied product name ("Rose plant", "snake plnt") to the catalog."""
+    name = (name or "").strip()
+    if not name:
+        return None
+    product = (Product.objects.filter(product_name__iexact=name).first()
+               or Product.objects.filter(product_name__icontains=name).first())
+    if product:
+        return product
+    catalog = list(Product.objects.values_list("product_name", flat=True))
+    # Catalog name inside the user's words ("Rose" in "Rose plant"); prefer the longest.
+    contained = sorted((n for n in catalog if re.search(rf"\b{re.escape(n.lower())}\b", name.lower())), key=len, reverse=True)
+    best = contained[0] if contained else next(iter(difflib.get_close_matches(name, catalog, n=1, cutoff=0.6)), None)
+    return Product.objects.filter(product_name=best).first() if best else None
+
+
+def resolve_product(product_name: str):
+    """Return (product, None), or (None, message for the user) when it is missing or ambiguous."""
+    name = (product_name or "").strip()
+    products = Product.objects.filter(product_name__icontains=name)
+    exact = products.filter(product_name__iexact=name).first()
+    if exact:
+        return exact, None
+    if products.count() == 1:
+        return products.first(), None
+    if products.count() > 1:
+        names = ", ".join(p.product_name for p in products[:5])
+        return None, (f"Multiple products match '{product_name}': {names}. "
+                      "Nothing was added yet. Please tell me which one you'd like.")
+    product = find_product(name)
+    if product:
+        return product, None
+    return None, (f"No product found with name '{product_name}'. "
+                  "Would you like to see the available options or try a different plant?")
 
 def extract_user_id(user_id) -> int:
     """
@@ -112,49 +153,28 @@ def recommend_products_for_plant(plant_name: str, user_query: str = "") -> str:
         return f"Error recommending products: {str(e)}"
 
 @tool
-def add_to_cart(user_id: int, product_name: str, variation_dict: dict = None) -> str:
+def add_to_cart(user_id: int, product_name: str, variation_dict: dict = None, quantity: int = 1) -> str:
     """
     Add the product to the cart by product name. If there exists a variation in the product, first get the variations THEN ONLY add the product with variation in the cart. 
-    If the product or product with certain variation already exists in the cart, increase the quantity of that product by 1.
-    Now less sensitive: prefers exact match, else picks the first partial match, only asks for clarification if truly ambiguous.
+    quantity is how many the user asked for (default 1). If the product with the same variation is already in the cart, its quantity is increased by that amount.
+    Prefers an exact name match, else a single partial match; asks the user to choose when several products match.
     Enforces that all required variations are specified if the product has variations.
     """
     try:
         user_id = extract_user_id(user_id)
         if variation_dict is None:
             variation_dict = {}
+        try:
+            quantity = max(1, min(int(quantity or 1), MAX_CART_QUANTITY))
+        except (TypeError, ValueError):
+            quantity = 1
         # Normalize keys to match required variations (case-insensitive)
         orig_variation_dict = variation_dict.copy()
         User = get_user_model()
         current_user = User.objects.get(id=user_id)
-        # Search for product by name (case-insensitive, partial match)
-        products = Product.objects.filter(product_name__icontains=product_name)
-        if not products.exists():
-            # Try to suggest similar products
-            similar_products = Product.objects.filter(product_name__icontains=product_name.split()[0])
-            if similar_products.exists():
-                names = ", ".join([p.product_name for p in similar_products[:5]])
-                return (
-                    f"No product found with name '{product_name}'. "
-                    f"Did you mean: {names}? Please specify the exact product name."
-                )
-            return (
-                f"No product found with name '{product_name}'. "
-                "Would you like to see the available options or try adding a different plant?"
-            )
-        # Prefer exact match if available
-        exact_matches = products.filter(product_name__iexact=product_name)
-        if exact_matches.exists():
-            product = exact_matches.first()
-        elif products.count() == 1:
-            product = products.first()
-        else:
-            product = products.first()
-            similar_names = ", ".join([p.product_name for p in products[:5]])
-            return (
-                f"Multiple products found matching '{product_name}': {similar_names}. "
-                f"Adding '{product.product_name}' to your cart. If this is not correct, please specify the exact product name."
-            )
+        product, problem = resolve_product(product_name)
+        if problem:
+            return problem
         # Check if product requires variations
         allowed = product.allowed_variations
         required_variations = []
@@ -197,15 +217,15 @@ def add_to_cart(user_id: int, product_name: str, variation_dict: dict = None) ->
         for item in cart_items:
             existing_variation = list(item.variation.all())
             if set(existing_variation) == set(product_variation):
-                item.quantity += 1
+                item.quantity += quantity
                 item.save()
-                return f"Increased quantity of {product.product_name} with selected variations."
+                return f"Added {quantity} more {product.product_name} to your cart (now {item.quantity})."
         # If no matching variation, create new item
-        new_item = CartItem.objects.create(product=product, quantity=1, user=current_user)
+        new_item = CartItem.objects.create(product=product, quantity=quantity, user=current_user)
         if product_variation:
             new_item.variation.set(product_variation)
         new_item.save()
-        return f"Added {product.product_name} to cart."
+        return f"Added {quantity} × {product.product_name} to cart."
     except ValueError as e:
         return f"Error: {str(e)}"
     except User.DoesNotExist:
@@ -229,14 +249,21 @@ def remove_cart_item(user_id: int, product_name: str) -> str:
         if not cart_items.exists():
             return "Your cart is empty."
         
-        # Search for the product in cart items
-        matching_items = []
-        for item in cart_items:
-            if product_name.lower() in item.product.product_name.lower():
-                matching_items.append(item)
+        # Prefer exact name matches; fall back to partial matches only if they
+        # all refer to the same product (e.g. two variations of it).
+        wanted = product_name.lower().strip()
+        matching_items = [item for item in cart_items if item.product.product_name.lower() == wanted]
+        if not matching_items:
+            matching_items = [item for item in cart_items if wanted in item.product.product_name.lower()]
         
         if not matching_items:
             return f"No product found in cart with name '{product_name}'."
+        matched_products = {item.product.product_name for item in matching_items}
+        if len(matched_products) > 1:
+            return (
+                f"Several products in your cart match '{product_name}': {', '.join(sorted(matched_products))}. "
+                "Nothing was removed. Please tell me which one to remove."
+            )
         
         # Remove all matching items
         removed_count = 0
@@ -264,14 +291,14 @@ def get_checkout_url(user_id: int) -> str:
     """
     Returns the URL for the checkout page.
     """
-    return "You can checkout your order here: https://plantaeai.tech/cart/checkout/"
+    return f"You can checkout your order here: {settings.SITE_URL.rstrip('/')}/cart/checkout/"
 
 @tool
 def get_my_orders_url(user_id: int) -> str:
     """
     Returns the URL for the user's orders page.
     """
-    return "You can view all your orders here: https://plantaeai.tech/accounts/my_orders/"
+    return f"You can view all your orders here: {settings.SITE_URL.rstrip('/')}/accounts/my_orders/"
 
 @tool
 def get_order_details_by_id(user_id: int, order_id: str) -> str:
@@ -360,17 +387,9 @@ def list_product_variations(product_name: str) -> str:
     List all available variation categories and values for a given product name.
     """
     try:
-        products = Product.objects.filter(product_name__icontains=product_name)
-        if not products.exists():
-            return f"No product found with name '{product_name}'."
-        # Prefer exact match if available
-        exact_matches = products.filter(product_name__iexact=product_name)
-        if exact_matches.exists():
-            product = exact_matches.first()
-        elif products.count() == 1:
-            product = products.first()
-        else:
-            product = products.first()
+        product, problem = resolve_product(product_name)
+        if problem:
+            return problem
         allowed = product.allowed_variations
         if not allowed:
             return f"'{product.product_name}' does not have any selectable variations."
