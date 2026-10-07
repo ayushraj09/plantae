@@ -1,120 +1,117 @@
 # Agent App
 
 ## Purpose
-The `agent` app powers the AI-driven chat assistant for the Plantae platform. It enables users to interact with a smart assistant for plant care, shopping, order support, and more, using both text and images. The app leverages advanced LLMs, image recognition, and integrates with other Plantae modules for a seamless user experience.
+The `agent` app powers the AI chat assistant for Plantae: plant care, shopping, and order support through text, images, and voice. When a request needs a person, it escalates to the Plantae team on Slack (human-in-the-loop) and keeps the customer informed in the same chat.
 
 ## Main Features
-- **AI Chat Assistant**: Users can chat with an AI agent for plant care, shopping, and order queries.
-- **Plant Identification**: Users can upload plant images; the agent identifies the plant using an LLM and provides care or shopping recommendations.
-- **Cart, Order, and Product Support**: The agent can help users manage their cart, view orders, and get product recommendations.
-- **Voice Integration**: Supports speech-to-text (STT) and text-to-speech (TTS) via ElevenLabs.
-- **Conversation Memory**: Remembers previous interactions for context-aware responses.
-- **Rate Limiting**: Limits users to 10 messages per session to prevent abuse.
-- **Admin Tools**: Admins can view chat histories and reset user chat limits.
+- **AI Chat Assistant**: plant care, product recommendations, cart and order help.
+- **Plant Identification**: identifies plants from uploaded photos and tailors advice.
+- **Cart, Order, and Product Support**: view/add/remove cart items (with quantities and variations), look up orders, recommend products.
+- **Voice Integration**: speech-to-text (STT) and text-to-speech (TTS) via ElevenLabs.
+- **Conversation Memory**: stored in PostgreSQL through the LangGraph checkpointer, so it survives restarts and deploys.
+- **Human-in-the-Loop**: escalations to Slack, where staff approve, edit, reject, or take over the chat.
+- **Starter Suggestions**: quick-reply buttons at the start of a chat.
+- **Rate Limiting**: 10 AI messages per user (messages to staff during a takeover are not counted).
+- **Admin Tools**: chat history, agent errors, and escalation tickets with full history.
 
 ## Architecture & Logic
-- **Agent Routing**: The core logic (in `langgraph/agent.py`) uses a supervisor agent to route user queries to specialized sub-agents:
-  - **Cart Agent**: Handles cart operations (add/view/remove items).
-  - **Order Agent**: Handles order history, order details, and status.
-  - **Recommendation Agent**: Suggests products based on user needs or identified plants.
-  - **Research Agent**: Answers plant care, watering, sunlight, and general plant questions.
-- **Image Handling**: Uploaded images are resized, stored, and analyzed for plant identification using OpenAI's API.
-- **Interrupts & Human-in-the-Loop**: For product variations, the agent can pause and request user input before proceeding.
-- **Memory**: Uses in-memory checkpointing for short-term conversation memory.
 
-## Key Models
-- **ChatMessage**: Stores each chat message (user/agent, timestamp, role).
-- **ChatImage**: Stores images uploaded in chat, linked to the user.
+### Chat graph (`langgraph/agent.py`, thread `user_<id>`)
+The **supervisor** classifies every message (structured output, with the last few messages as context) and routes it to one node:
 
-## Key Views (agent/views.py)
-- `chat_interface`: Renders the chat UI for users.
-- `ask_agent`: Main endpoint for chat queries, image uploads, and agent logic.
-- `greet_agent`: Sends a personalized greeting message.
-- `stt`, `tts`: Endpoints for speech-to-text and text-to-speech.
-- `handle_variation_selection`: Handles user input for product variations.
+| Route | Node | Handles |
+|---|---|---|
+| `cart` | Cart Agent | View/add/remove items, quantities, variation picker |
+| `order` | Order Agent | Order details, history, checkout and My Orders links |
+| `recommendation` | Recommendation | Products from the catalog, or for an identified plant |
+| `research` | Research Agent | Plant care via web search |
+| `general` | General Agent | Greetings, thanks, follow-ups about the conversation; politely declines off-topic requests |
+| `escalation` | Escalation Intake | Requests that need a person (see below) |
 
-## Agent Logic (langgraph/agent.py)
-- **Supervisor Agent**: Decides which sub-agent should handle the user's query.
-- **Sub-Agents**:
-  - Cart, Order, Recommendation, Research (see above).
-- **Plant Identification**: Uses OpenAI's API to analyze uploaded images and extract plant names.
-- **Product Recommendation**: Suggests products based on plant type or user query.
-- **Variation Selection**: If a product requires user-selected variations (e.g., color/size), the agent interrupts and waits for user input.
-- **Conversation History**: Maintains per-user conversation history for context.
+Some messages skip the LLM and go straight to escalation: asking for a human ("talk to a person", "customer care"), two errors in a row, or the same question asked three times. An angry customer is handed to a person immediately.
 
-## Integrations
-- **OpenAI**: For LLM-based chat and image analysis.
-- **ElevenLabs**: For speech-to-text and text-to-speech.
-- **Other Plantae Apps**: Integrates with `accounts`, `store`, `carts`, and `orders` for user, product, cart, and order data.
+The **variation picker** pauses the graph (`interrupt`) until the customer chooses a color/size, then adds the item.
 
-## Admin
-- **Chat History**: Admins can view recent chat messages per user.
-- **Reset Chat Limits**: Admin action to reset user chat message limits.
+### Escalation intake (`langgraph/escalation.py`)
+1. Picks a category: `price_match`, `cancellation`, `delivery`, `payment_issue`, `damaged_item`, `bulk_order`, `complaint`, `human_request`, `other`.
+2. Extracts the details staff need (product, competitor price and source, order number, amount, ...) and asks the customer for anything missing (at most twice). The customer can withdraw ("never mind").
+3. Opens an `EscalationTicket`:
+   - **assist** (price match, cancellation, delivery, payment): staff approve or edit an AI proposal.
+   - **takeover** (damaged item, bulk order, complaint, asked for a human, angry customer): staff chat with the customer directly.
 
-## API Endpoints (urls.py)
-- `/ask/`: Main chat endpoint.
-- `/clear_chat/`: Clears chat history for a user.
-- `/get_chat_history/`: Fetches chat history.
-- `/stt/`, `/tts/`: Speech endpoints.
-- `/greet/`: Sends a greeting message.
-- `/variation_selection/`: Handles product variation selection.
+### Escalation graph (thread `esc_<ticket_id>`, runs in the worker)
+```
+prepare_proposal ─► staff_review (interrupt) ─► apply_decision ─► compose_reply
+```
+- `prepare_proposal` writes a staff summary and a rule-based proposal from the database (e.g. price gap → discount %, capped at 15%; an "Accepted" order → cancel it).
+- `staff_review` pauses until a staff decision arrives from Slack or the admin.
+- `apply_decision` performs the approved action (`hitl/actions.py`): cancel the order, or create a **price-match coupon**.
+- `compose_reply` writes the customer message from the outcome and staff note, without inventing promises, and adds it to the chat memory.
 
-## Templates
-- `agent/chat.html`: Main chat interface for users.
+The escalation runs on its own thread so the customer can keep chatting while staff decide.
 
-## Security & Rate Limiting
-- Only authenticated users can access chat features.
-- Each user is limited to 10 messages per session; admins can reset this limit.
-
-## Extensibility
-- The agent logic is modular and can be extended with new tools, sub-agents, or integrations.
-- Designed for easy integration with new LLMs or APIs.
-
-## Notes
-- The app is central to the Plantae user experience, providing smart, context-aware, and multimodal (text/image/voice) support.
-- For more details, see the code in `langgraph/agent.py` and `views.py`. 
-
-# Detailed Agent Workflow Diagram
-
+### Human-in-the-loop flow
 ```mermaid
 flowchart TD
-    A[User Query/Input] --> B[Supervisor Agent]
-    B -->|Cart-related| C[Cart Agent]
-    B -->|Order-related| D[Order Agent]
-    B -->|Product Recommendation| E[Recommendation Agent]
-    B -->|Plant Care/Research| F[Research Agent]
-    C -->|Needs Variation Selection?| G{Variation Selection}
-    G -- Yes --> H[Wait for User Input]
-    H --> C
-    G -- No --> I[Cart Response]
-    C --> I
-    D --> J[Order Response]
-    E --> K[Recommendation Response]
-    F --> L[Research Response]
-    I --> M[Response Node]
-    J --> M
-    K --> M
-    L --> M
-    M --> N[Final Response to User]
-    
-    %% Image/Plant Identification
-    A -- Image Uploaded --> O[Plant Identification]
-    O --> B
-    
-    %% Memory/History
-    subgraph Memory
-      P[Conversation History]
-    end
-    B --- P
-    C --- P
-    D --- P
-    E --- P
-    F --- P
-    O --- P
-    
-    %% Notes
-    %% - Supervisor routes to only one agent at a time
-    %% - Variation selection interrupts and resumes cart agent
-    %% - All agents can access conversation history
-    %% - Plant identification augments user input if image is uploaded
-``` 
+    U[Customer message] --> S{Supervisor}
+    S -->|needs a person| I[Escalation Intake]
+    I -->|details missing| Q[Ask the customer]
+    I -->|ready| T[(EscalationTicket)]
+    T --> W[Worker: summary + proposal]
+    W --> SL[Slack ticket card]
+    SL -->|Approve / Edit / Reject| D[Apply decision]
+    D --> R[AI reply to customer]
+    SL -->|Take over| TO[Live chat in Slack thread]
+    TO -->|Hand back to AI| AI[AI resumes with memory of the conversation]
+```
+
+### Price-match coupons
+An approved price match creates a `carts.Coupon` (e.g. `ROSE10`):
+- tied to the **customer's account** and the **product**; lookups always include the logged-in user;
+- covers up to **2 units** per order, valid **7 days**, **single use**, consumed only after Razorpay confirms payment;
+- entered in the coupon box on the cart or checkout page; totals are computed in one place (`carts/pricing.py`).
+
+### Live updates in the widget
+While a ticket is open, the chat widget polls `/agent/updates/` every 8 seconds for staff messages and AI replies, shows a banner ("You're chatting with the Plantae team"), and stops once the outcome has been delivered.
+
+## Key Models
+- **ChatMessage**: each chat message (`user`, `agent`, or `staff`), linked to a ticket and staff author when relevant.
+- **ChatImage**: images uploaded in chat.
+- **AgentError**: failures recorded for the admin panel.
+- **EscalationTicket**: category, mode (assist/takeover), status, summary, details, proposal, final decision, Slack thread, assignee.
+- **TicketEvent**: audit trail for every ticket (created, posted, approved, edited, rejected, takeover, messages, hand-back, reminders).
+
+## Code Layout
+- `langgraph/agent.py`: chat graph, supervisor, sub-agents.
+- `langgraph/escalation.py`: escalation intake and escalation graph.
+- `langgraph/checkpointer.py`: PostgreSQL checkpointer (`python manage.py setup_checkpointer` creates its tables).
+- `langgraph/tools.py`: cart/order/product tools (fuzzy product matching, quantities).
+- `hitl/service.py`: ticket lifecycle (create, decide, take over, hand back, relay messages).
+- `hitl/actions.py`: what an approved decision does (cancel order, create coupon).
+- `hitl/slack.py`, `views_slack.py`: Slack cards, buttons, edit dialogs, signed webhooks.
+- `hitl/tasks.py`: background jobs run by `python manage.py qcluster`.
+- `hitl/notify.py`: email fallback.
+
+## API Endpoints (urls.py)
+- `/ask/`: main chat endpoint (relays to staff during a takeover).
+- `/updates/`: new staff/AI messages and ticket status (polled by the widget).
+- `/escalate/`: "Talk to a human" button.
+- `/slack/interactions/`, `/slack/events/`: Slack buttons/dialogs and thread replies (verified by Slack signature).
+- `/clear_chat/`, `/get_chat_history/`, `/greet/`, `/stt/`, `/tts/`, `/variation_selection/`.
+
+## Admin
+- **Chat History**: recent messages per user.
+- **Agent Errors**: failures with tracebacks, mark as resolved.
+- **Escalation Tickets**: summary, details, proposal, recent chat, history; decide (approve / edit / reject / take over / hand back) and reply to the customer without Slack.
+
+## Security & Rate Limiting
+- Only authenticated users can chat; Slack webhooks are accepted only with a valid Slack signature.
+- Database changes from escalations happen only after a staff decision.
+- Agents never reveal internal IDs or create discount codes on their own.
+- 10 AI messages per user; users with an open ticket are never blocked from reaching staff.
+
+## Slack Screenshots
+<!-- Add your screenshots to docs/screenshots/ with these file names. -->
+| Ticket card | Live chat in a thread |
+|-------------|-----------------------|
+| ![Slack ticket card](../docs/screenshots/slack_ticket_card.png) | ![Slack takeover thread](../docs/screenshots/slack_takeover_thread.png) |
