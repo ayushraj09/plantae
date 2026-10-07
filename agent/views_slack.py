@@ -34,6 +34,17 @@ def slack_interactions(request):
     if payload.get("type") == "block_actions":
         action = payload["actions"][0]
         action_id = action["action_id"]
+        view = payload.get("view")
+        if view and action.get("block_id") == "discount":
+            # Discount typed in the Edit & approve dialog: refresh the price preview.
+            meta = json.loads(view.get("private_metadata") or "{}")
+            ticket = EscalationTicket.objects.filter(pk=meta.get("ticket_id")).first()
+            if ticket is not None:
+                try:
+                    slack.update_modal(view["id"], view["hash"], slack.edit_modal(ticket, "hitl_edit", action.get("value")))
+                except Exception:
+                    logger.exception("Could not refresh price preview for ticket #%s", ticket.pk)
+            return HttpResponse(status=200)
         ticket = EscalationTicket.objects.get(pk=int(action["value"]))
         try:
             if action_id in ("hitl_edit", "hitl_reject"):

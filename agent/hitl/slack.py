@@ -53,6 +53,47 @@ def _button(text, action_id, ticket_id, style=None):
     return button
 
 
+def price_preview(ticket, percent) -> Optional[str]:
+    """Final per-unit price for a price-match discount, compared with the competitor.
+
+    Returns None when the ticket has no known product price (e.g. product not found).
+    """
+    import math
+    from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+
+    from agent.langgraph.escalation import _to_decimal
+
+    facts = (ticket.proposed_action or {}).get("facts") or {}
+    info = ticket.collected_info or {}
+    ours = _to_decimal(facts.get("our_price"))
+    if not ours:
+        return None
+    try:
+        pct = int(str(percent).strip())
+    except (TypeError, ValueError, InvalidOperation):
+        return "Enter a discount between 1 and 50 to see the final price."
+    if not 1 <= pct <= 50:
+        return "Enter a discount between 1 and 50 to see the final price."
+
+    final = (ours * (100 - pct) / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    product = facts.get("our_product") or info.get("product_name") or "the product"
+    line = (f"{pct}% off ₹{ours:.2f} → *₹{final:.2f}* per unit (₹{ours - final:.2f} off), "
+            f"up to {settings.PRICE_MATCH_MAX_UNITS} × {product}")
+    theirs = _to_decimal(info.get("competitor_price"))
+    if theirs:
+        source = info.get("competitor_source") or "competitor"
+        if final > theirs:
+            line += f"\nCompetitor ({source}) ₹{theirs:.2f}: still ₹{final - theirs:.2f} *above* it"
+        elif final == theirs:
+            line += f"\nCompetitor ({source}) ₹{theirs:.2f}: *matches exactly*"
+        else:
+            line += f"\nCompetitor ({source}) ₹{theirs:.2f}: ₹{theirs - final:.2f} *below* it"
+        if theirs < ours:
+            exact = math.ceil((ours - theirs) / ours * 100)
+            line += f"\n{exact}% matches the competitor price"
+    return line
+
+
 def _describe_proposal(proposed: dict) -> str:
     kind = proposed.get("type", "note_only")
     if kind == "price_match":
@@ -85,6 +126,9 @@ def ticket_blocks(ticket) -> list:
 
     if ticket.status == ticket.STATUS_AWAITING:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*AI proposal:* {_describe_proposal(proposed)}"}})
+        preview = price_preview(ticket, proposed.get("discount_percent")) if proposed.get("type") == "price_match" else None
+        if preview:
+            blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": preview}]})
         blocks.append({"type": "actions", "elements": [
             _button("Approve", "hitl_approve", ticket.pk, "primary"),
             _button("Edit & approve", "hitl_edit", ticket.pk),
@@ -102,18 +146,30 @@ def ticket_blocks(ticket) -> list:
         action = f" ({outcome['action']})" if outcome.get("action") else ""
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
             "text": f"*{ticket.get_status_display()}*{by}{action}{note}"}})
+        approved_pct = (outcome.get("params") or {}).get("discount_percent") or proposed.get("discount_percent")
+        if ticket.status == ticket.STATUS_APPROVED and ticket.category == "price_match" and approved_pct:
+            preview = price_preview(ticket, approved_pct)
+            if preview:
+                blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"Approved: {preview}"}]})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"<{admin_url(ticket)}|Open in admin>"}]})
     return blocks
 
 
-def edit_modal(ticket, action_id: str) -> dict:
+def edit_modal(ticket, action_id: str, percent=None) -> dict:
+    """Edit/Reject dialog. For price matches the discount box updates a live price preview."""
     proposed = ticket.proposed_action or {}
     blocks = []
     if action_id == "hitl_edit" and proposed.get("type") == "price_match":
-        blocks.append({"type": "input", "block_id": "discount", "label": {"type": "plain_text", "text": "Discount %"},
+        current = percent if percent not in (None, "") else (proposed.get("discount_percent") or 5)
+        blocks.append({"type": "input", "block_id": "discount", "dispatch_action": True,
+                       "label": {"type": "plain_text", "text": "Discount %"},
                        "element": {"type": "number_input", "is_decimal_allowed": False, "action_id": "value",
-                                   "min_value": "1", "max_value": "50",
-                                   "initial_value": str(proposed.get("discount_percent") or 5)}})
+                                   "min_value": "1", "max_value": "50", "initial_value": str(current),
+                                   "dispatch_action_config": {"trigger_actions_on": ["on_character_entered"]}}})
+        preview = price_preview(ticket, current)
+        if preview:
+            blocks.append({"type": "context", "block_id": "price_preview",
+                           "elements": [{"type": "mrkdwn", "text": preview}]})
     blocks.append({"type": "input", "block_id": "note", "optional": action_id != "hitl_reject",
                    "label": {"type": "plain_text", "text": "Note for the customer"},
                    "element": {"type": "plain_text_input", "multiline": True, "action_id": "value"}})
@@ -125,6 +181,10 @@ def edit_modal(ticket, action_id: str) -> dict:
         "submit": {"type": "plain_text", "text": "Reject" if action_id == "hitl_reject" else "Approve"},
         "blocks": blocks,
     }
+
+
+def update_modal(view_id: str, view_hash: str, view: dict) -> None:
+    client().views_update(view_id=view_id, hash=view_hash, view=view)
 
 
 # --- API calls ------------------------------------------------------------------
