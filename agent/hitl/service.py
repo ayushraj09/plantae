@@ -193,11 +193,56 @@ def end_takeover(ticket_id: int, *, actor=None, source: str, note: str = "") -> 
     return ticket
 
 
-def relay_user_message(ticket: EscalationTicket, text: str) -> ChatMessage:
-    """During takeover the AI is muted; the user's message goes to staff."""
-    msg = ChatMessage.objects.create(user=ticket.user, role="user", ticket=ticket, message=text)
-    log_event(ticket, "message", "user", text=text)
+def relay_user_message(ticket: EscalationTicket, text: str, photo_url: str = "") -> ChatMessage:
+    """During takeover the AI is muted; the user's message goes to staff.
+
+    The chat shows the customer's own words (the photo is shown from ChatImage);
+    staff get the photo link in Slack.
+    """
+    msg = ChatMessage.objects.create(user=ticket.user, role="user", ticket=ticket, message=text or "📷 Photo")
+    log_event(ticket, "message", "user", text=text, photo_url=photo_url)
     _enqueue("agent.hitl.tasks.relay_message_to_slack", ticket.pk, msg.pk)
+    return msg
+
+
+# Don't acknowledge follow-ups more often than this while staff are quiet.
+FOLLOWUP_ACK_MINUTES = 15
+
+
+def expiry_deadline(ticket: EscalationTicket):
+    """When an unanswered ticket expires: HITL_EXPIRE_HOURS after the last staff reply (or creation)."""
+    from datetime import timedelta
+    from django.conf import settings
+    last_staff = (ChatMessage.objects.filter(ticket=ticket, role="staff")
+                  .order_by("-timestamp").values_list("timestamp", flat=True).first())
+    return max(ticket.created_at, last_staff or ticket.created_at) + timedelta(hours=settings.HITL_EXPIRE_HOURS)
+
+
+def acknowledge_followup(ticket: EscalationTicket) -> Optional[ChatMessage]:
+    """Tell a customer who is still waiting for staff that their message reached the team.
+
+    Silent while staff are actively replying, and at most once per FOLLOWUP_ACK_MINUTES.
+    """
+    from datetime import timedelta
+    now = timezone.now()
+    window = now - timedelta(minutes=FOLLOWUP_ACK_MINUTES)
+    if ticket.created_at >= window:  # the "connecting you" message was just shown
+        return None
+    if ChatMessage.objects.filter(ticket=ticket, role="staff", timestamp__gte=window).exists():
+        return None
+    if ticket.events.filter(kind="ack", created_at__gte=window).exists():
+        return None
+    staff_replied = ChatMessage.objects.filter(ticket=ticket, role="staff", author__isnull=False).exists()
+    deadline = timezone.localtime(expiry_deadline(ticket)).strftime("%d %b, %I:%M %p")
+    if staff_replied:
+        text = (f"I've passed your message to the Plantae team on request #{ticket.pk}. "
+                f"They'll reply right here as soon as they can.")
+    else:
+        text = (f"Your request #{ticket.pk} is with the Plantae team and I've added your message to it. "
+                f"They've been notified and will reply right here. If they can't reply in chat by "
+                f"{deadline}, we'll email you at {ticket.user.email}.")
+    msg = ChatMessage.objects.create(user=ticket.user, role="agent", ticket=ticket, message=text)
+    log_event(ticket, "ack", "ai")
     return msg
 
 
@@ -238,7 +283,8 @@ def expire_ticket(ticket: EscalationTicket) -> None:
         ChatMessage.objects.create(
             user=ticket.user, role="agent", ticket=ticket,
             message=(f"Sorry for the wait on request #{ticket.pk}. Our team couldn't get to it in chat, "
-                     f"so they'll follow up by email at {ticket.user.email}."),
+                     f"so we've emailed you at {ticket.user.email} and they'll follow up there."),
         )
         ChatMessage.objects.create(user=ticket.user, role="agent", ticket=ticket, message=AI_BACK_MESSAGE)
         _enqueue("agent.hitl.tasks.refresh_slack_card", ticket.pk)
+        _enqueue("agent.hitl.tasks.send_expiry_emails", ticket.pk)

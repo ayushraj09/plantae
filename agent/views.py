@@ -105,16 +105,17 @@ def ask_agent(request):
         # the message is relayed to staff. Not counted towards the message limit.
         takeover = hitl.active_takeover(user_id) if not save_only and resume_data is None else None
         if takeover is not None:
-            text = message
+            photo_url = ""
             if image:
                 chat_image = ChatImage.objects.create(user=request.user)
                 chat_image.image.save(f"user_{user_id}_ticket_{takeover.pk}_{timezone.now():%Y%m%d%H%M%S}_{image.name}", image, save=True)
-                text = f"{message}\n[Photo: {request.build_absolute_uri(chat_image.image.url)}]".strip()
-            if not text:
+                photo_url = request.build_absolute_uri(chat_image.image.url)
+            if not message and not photo_url:
                 return JsonResponse({"error": "Empty message."}, status=400)
-            msg = hitl.relay_user_message(takeover, text)
-            return JsonResponse({"response": "", "handoff": True, "interrupt": False,
-                                 "message_id": msg.id, "ticket": hitl.ticket_payload(takeover)})
+            msg = hitl.relay_user_message(takeover, message, photo_url=photo_url)
+            ack = hitl.acknowledge_followup(takeover)
+            return JsonResponse({"response": ack.message if ack else "", "handoff": True, "interrupt": False,
+                                 "message_id": ack.id if ack else msg.id, "ticket": hitl.ticket_payload(takeover)})
 
         limit_key = f"chat_limit_user_{user_id}"
         block_key = f"chat_blocked_{user_id}"

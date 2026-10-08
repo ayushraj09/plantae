@@ -10,8 +10,8 @@ from django.db import transaction
 from agent.models import ChatMessage, EscalationTicket, TicketEvent
 
 from . import slack
-from .notify import email_staff
-from .service import expire_ticket, log_event
+from .notify import email_customer_expired, email_staff, email_staff_expired
+from .service import expire_ticket, expiry_deadline, log_event
 
 logger = logging.getLogger("agent.hitl")
 
@@ -85,8 +85,11 @@ def relay_message_to_slack(ticket_id: int, message_id: int) -> None:
         if TicketEvent.objects.filter(ticket=ticket, kind="relayed", payload__message_id=message_id).exists():
             return
         msg = ChatMessage.objects.get(pk=message_id)
+        event = ticket.events.filter(kind="message", source="user", payload__text=msg.message).order_by("-id").first()
+        photo = (event.payload.get("photo_url") if event else "") or ""
+        text = msg.message if not photo else f"{msg.message if msg.message != '📷 Photo' else ''}\n[Photo: {photo}]".strip()
         try:
-            slack.post_thread(ticket, f"*{ticket.user.first_name or 'Customer'}:* {msg.message}")
+            slack.post_thread(ticket, f"*{ticket.user.first_name or 'Customer'}:* {text}")
         except Exception:
             logger.exception("Slack relay failed for #%s message %s", ticket_id, message_id)
             return
@@ -102,13 +105,22 @@ def post_slack_thread(ticket_id: int, text: str) -> None:
             logger.exception("Slack thread post failed for #%s", ticket_id)
 
 
+def send_expiry_emails(ticket_id: int) -> None:
+    ticket = EscalationTicket.objects.select_related("user").get(pk=ticket_id)
+    customer = email_customer_expired(ticket)
+    staff = email_staff_expired(ticket)
+    log_event(ticket, "emailed", "system", customer=customer, staff=staff)
+
+
 def sla_sweep() -> None:
     """Scheduled every 5 minutes: remind staff, then expire tickets nobody picked up."""
     now = timezone.now()
     waiting = EscalationTicket.objects.filter(status__in=[EscalationTicket.STATUS_AWAITING, EscalationTicket.STATUS_TAKEOVER])
 
+    # Expire only tickets with no staff reply for HITL_EXPIRE_HOURS, so a live conversation never expires.
     for ticket in waiting.filter(created_at__lte=now - timedelta(hours=settings.HITL_EXPIRE_HOURS)):
-        expire_ticket(ticket)
+        if expiry_deadline(ticket) <= now:
+            expire_ticket(ticket)
 
     overdue = waiting.filter(created_at__lte=now - timedelta(minutes=settings.HITL_SLA_MINUTES),
                              sla_reminded_at__isnull=True)

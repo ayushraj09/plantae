@@ -289,3 +289,8 @@
   color: #0f5132;
   outline: none;
 }
+
+/* Long links or words in a message wrap instead of scrolling the chat sideways */
+#plantae-chat-body .rounded-3 {
+  overflow-wrap: anywhere;
+}

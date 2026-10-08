@@ -291,7 +291,15 @@ def summarize_ticket(ticket, facts: Dict[str, Any]) -> str:
     from agent.models import ChatMessage
     from .agent import make_llm
 
-    history = ChatMessage.objects.filter(user=ticket.user).order_by("-timestamp")[:10][::-1]
+    from agent.models import EscalationTicket
+    # Only this request: ignore conversation that belonged to the customer's earlier tickets.
+    previous = (EscalationTicket.objects.filter(user=ticket.user, created_at__lt=ticket.created_at,
+                                                resolved_at__isnull=False)
+                .order_by("-resolved_at").values_list("resolved_at", flat=True).first())
+    messages = ChatMessage.objects.filter(user=ticket.user)
+    if previous:
+        messages = messages.filter(timestamp__gt=previous)
+    history = messages.order_by("-timestamp")[:10][::-1]
     transcript = "\n".join(f"{m.role}: {m.message[:500]}" for m in history)
     response = make_llm().invoke([
         SystemMessage(content=(

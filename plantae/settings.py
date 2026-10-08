@@ -190,7 +190,7 @@ HITL_SLA_MINUTES = int(os.getenv('HITL_SLA_MINUTES', '30'))
 HITL_EXPIRE_HOURS = int(os.getenv('HITL_EXPIRE_HOURS', '24'))
 # Bump (or set via env on deploy) whenever the chat widget's CSS/JS change, so
 # browsers fetch the new files instead of mixing cached old ones with new markup.
-CHAT_WIDGET_VERSION = os.getenv('CHAT_WIDGET_VERSION', '2026.10.08.1')
+CHAT_WIDGET_VERSION = os.getenv('CHAT_WIDGET_VERSION', '2026.10.08.2')
 # Approved price matches become a user-specific coupon for the product.
 PRICE_MATCH_MAX_UNITS = int(os.getenv('PRICE_MATCH_MAX_UNITS', '2'))
 PRICE_MATCH_VALID_DAYS = int(os.getenv('PRICE_MATCH_VALID_DAYS', '7'))

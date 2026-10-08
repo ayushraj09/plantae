@@ -260,8 +260,8 @@ function sendMessage() {
     console.log('[ChatWidget] /agent/ask/ data:', data);
     const reply = data.response;
     const replyEl = document.getElementById(loadingId);
-    if (data.handoff || (data.message_id && renderedMessageIds.has(data.message_id))) {
-      // Relayed to the Plantae team (no AI reply), or polling already showed it.
+    if ((data.handoff && !reply) || (data.message_id && renderedMessageIds.has(data.message_id))) {
+      // Relayed to the Plantae team (no acknowledgement needed), or polling already showed it.
       if (replyEl) replyEl.remove();
     } else if (replyEl) {
       replyEl.innerHTML = `<div class="${BUBBLE_CLASSES.agent}" style="max-width: 70%;">${markdownHtml(reply)}</div>`;
